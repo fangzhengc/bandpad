@@ -1,0 +1,34 @@
+# ───── 签名材料：私钥与明文密码，绝不入库 ─────
+# 别人 clone 后请用 scripts/gen-pem.sh 生成自己的一套（见 README）
+phone/keystore/
+phone/keystore.properties
+band/sign/
+*.p12
+*.jks
+*.keystore
+private.pem
+*.pem
+*.bak
+*.bak.*
+
+# ───── 本机路径与工具链（总计约 2.4G，不入库）─────
+.toolchain/
+phone/local.properties
+.gradle/
+build/
+
+# ───── 依赖与中间产物 ─────
+node_modules/
+band/build/
+band/dist/
+band/.temp*
+phone/build/
+phone/app/build/
+*.iml
+.idea/
+.DS_Store
+Thumbs.db
+*.log
+
+# 签名脚本的临时目录
+.tmp_sign/

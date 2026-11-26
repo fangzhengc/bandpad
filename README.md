@@ -1,0 +1,291 @@
+# 腕上翻页 · BandPad
+
+![platform](https://img.shields.io/badge/手环-小米手环%209%20Pro-5DCAA5)
+![platform](https://img.shields.io/badge/手机-Android%207.0%2B-3DDC84)
+![band](https://img.shields.io/badge/手环端-Vela%20快应用%20(RPK)-blue)
+![license](https://img.shields.io/badge/license-MIT-5DCAA5)
+![用途](https://img.shields.io/badge/用途-自用工具-lightgrey)
+
+**在手表上滑一下，手机就翻一页。** 看电子书、刷短视频时不用再去够手机。
+
+手环端是一个 Vela 快应用（`.rpk`），**用 [AstroBox](https://astrobox.online/) 刷入手环**；手机端是一个用了无障碍手势的安卓 App。两端通过小米官方的 `interconnect` 通道通信。
+
+```
+手环 RPK ──上/下滑──▶ interconnect（BLE → 小米运动健康 → App）──▶ 手机 APK ──dispatchGesture()──▶ 系统翻页
+```
+
+---
+
+## 适配与限制
+
+| 项目 | 情况 |
+|---|---|
+| 手环 | 小米手环 9 Pro（`designWidth=168`，对应 336×480）。手环 9 / 9 NFC 等同分辨率 Vela 设备理论上可用，未实测 |
+| 手机 | Android 7.0+（`minSdk 23`），已在 Redmi K90 Pro Max / HyperOS 上使用 |
+| 手环刷入方式 | **[AstroBox](https://astrobox.online/)**（也可用表盘自定义工具等支持 RPK 的工具） |
+| 延迟 | 百毫秒级。这是「滑一下翻一页」的离散模式，不是逐帧跟手的触控板 |
+| 已知无效场景 | 少数 App 自绘手势、屏蔽无障碍手势注入，这类翻不动，属系统限制 |
+
+---
+
+## 两种用法
+
+**只想用，不打算编译** —— 直接装 `dist/` 里现成的两个包。它们是同一次签名出来的，装完即可连通：
+
+| 文件 | 装到哪 |
+|---|---|
+| `dist/bandpad.apk` | 手机 |
+| `dist/com.bandpad.pageflip.release.1.1.4.rpk` | 手环（用 AstroBox 刷入） |
+
+**想改代码** —— clone 下来就能编，小米穿戴 SDK 已随仓库提供，不用自己申请：
+
+```bash
+git clone <仓库地址>
+cd bandpad
+bash scripts/gen-pem.sh    # 生成你自己的签名，必需，见下文
+bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
+```
+
+> ⚠️ 自己编译出来的包和 `dist/` 里那套**签名不同，不能混装**。要么两端都用现成的，要么两端都换成你自己编的。
+
+---
+
+## 安装
+
+### 1. 手机端（先装这个）
+
+装 `dist/bandpad.apk`，然后：
+
+1. 打开「腕上翻页」→ 点 **① 打开无障碍设置** → 找到「腕上翻页」→ 打开
+2. 回 App，顶部显示「无障碍服务：已开启」即成功
+3. 点 **② 测试 下一页**：在任意界面随手指上滑一下 —— **这一步不依赖手环**，先确认无障碍能力可用，能排掉 90% 的问题
+4. HyperOS / MIUI 上再补三件事，否则息屏后会被杀：
+   - 应用信息 → 省电策略 → **无限制**（或直接点 App 里 **⑥ 关闭电池优化**）
+   - 应用信息 → 自启动 → **允许**（或点 **⑦ 打开自启动设置**）
+   - 多任务界面把「腕上翻页」卡片**下拉锁定**
+
+### 2. 手环端（用 AstroBox 刷入）
+
+手环没有应用商店，快应用 RPK 必须侧载。本项目使用 **AstroBox** 刷入。
+
+[AstroBox](https://astrobox.online/) 是面向小米穿戴设备（Xiaomi Vela / HyperOS）的第三方管理工具，支持安装 `.rpk` 快应用、`.bin` 表盘与固件，并可连接设备、传文件、管插件。
+
+**准备**：手机装 AstroBox，把 `dist/com.bandpad.pageflip.release.1.1.4.rpk` 存到手机任意目录（下载目录即可）。
+
+**连接手环**（已连过可跳过）：
+
+1. 打开 AstroBox → 用**小米账号**登录（自动拉取 AuthKey）；也可以手动输入 AuthKey
+2. 手环上：设置 → 系统 → 连接新设备，屏幕会出现配对码
+3. AstroBox → **设备** → 选中扫描到的手环 → 输入配对码 / AuthKey → 发送
+4. 两端都点「允许配对」，提示配对成功即完成
+
+**刷入快应用**：
+
+1. AstroBox → 底部 **设备**
+2. 点 **安装应用** → 选择 **本地文件**
+3. 找到 `com.bandpad.pageflip.release.1.1.4.rpk`，加入任务队列
+4. 点 **一键安装**，等 5～15 秒，手环上会弹出安装进度条
+5. 装完手环应用列表里出现「腕上翻页」
+
+> **升级覆盖安装**：新 RPK 的 `versionCode` 必须比已装的大，否则手环不会更替。本项目手环端当前为 `1.1.4 / versionCode 6`，旧版本可直接覆盖升级。
+
+> AstroBox 只是「把文件送进手环」的工具，不改变应用行为。装了 AstroBox 不必保持它常驻，日常翻页完全不需要它。
+
+<details>
+<summary>其他刷入方式（备选，本项目未使用）</summary>
+
+- **表盘自定义工具**：连接设备 → 「安装快应用」→ 选 RPK
+- **adb**：手机开 USB 调试，`adb push xxx.rpk /sdcard/Download/`，再用文件管理器点开、选「小米运动健康」打开安装
+
+</details>
+
+### 3. 给手环授权（漏了这步必然报 `permission denied`）
+
+官方 interconnect 的顺序是「找设备 → 查安装 → **申请权限** → 注册监听」，缺一不可。
+
+1. 手环端装好后，回手机 App 点 **④ 重新连接手环**
+2. 日志出现「发现设备：小米手环9 Pro」+「手环端应用已安装」后，点 **⑤ 申请手环权限**
+3. 手环上若弹确认，点允许；成功后日志出现「授权完成」+「消息通道已就绪」
+4. 状态栏「手环通道」变成 **已连通，可以滑手环了** 就成功了
+
+> 权限只需给一次，之后 App 重启会自动 `checkPermissions` 复用。已连通时 ⑤ 会变灰 —— SDK 对同一台手环只允许注册一次，重复点会被拒。
+
+### 4. 使用
+
+手环上打开「腕上翻页」：
+
+- 顶部绿点 = 手机通道已连上；红点 = 没连上（回手机 App 点 ④）
+- **上滑 → 下一页**，**下滑 → 上一页**，一次一页，带震动反馈
+- **右滑 → 退出**（也可点右上角「退出」按钮）
+- 手机 App 的「运行记录」能看到每条指令及执行结果
+
+---
+
+## 从源码编译
+
+不需要 Android Studio，全程命令行。`scripts/build.sh` 会一起出两端产物。
+
+### 1. 环境
+
+| 需要 | 版本 | 说明 |
+|---|---|---|
+| JDK | 17 | 编译安卓端 |
+| Android SDK | platform-34 + build-tools 34.0.0 | 用 `cmdline-tools` 的 `sdkmanager` 装 |
+| Gradle | 8.5+ | 或直接用 `gradlew` |
+| Node.js | 18+ | 手环端 `aiot-toolkit` 需要 |
+
+```bash
+sdkmanager --sdk_root=$ANDROID_HOME "platform-tools" "platforms;android-34" "build-tools;34.0.0"
+cd band && npm install
+```
+
+需要设两个环境变量：`JAVA_HOME` 和 `ANDROID_HOME`（或 `ANDROID_SDK_ROOT`）。`scripts/build.sh` 会自动探测它们，也会生成 `phone/local.properties` 里的 `sdk.dir`，不用手填。
+
+> 仓库不含 `.toolchain/`（作者本机的免安装 JDK+SDK+Gradle，约 2.4G）和 `node_modules/`。前者是可选的加速包——放在仓库根目录下，`build.sh` 会优先用它；没有就走系统环境。
+>
+> **小米穿戴 SDK（`phone/app/libs/xms-wearable-lib_1.4_release.aar`）已随仓库提供**，所以不用走官方申请流程就能编译。它的版权归小米，使用限制见 [NOTICE.md](NOTICE.md)。
+
+### 2. 生成签名（**必须做，仓库不含私钥**）
+
+interconnect 要求 **RPK 与 APK 同包名 + 同签名**。仓库出于安全考虑不含任何私钥，请生成自己的一套：
+
+```bash
+bash scripts/gen-pem.sh                        # 密码自动随机生成并打印出来
+BANDPAD_PASS=你的密码 bash scripts/gen-pem.sh    # 想用固定密码
+BANDPAD_PASS=旧密码 bash scripts/gen-pem.sh --force  # 丢弃旧 keystore 重建
+```
+
+它做三件事：
+
+1. 生成 `phone/keystore/pageflip.p12`（安卓 keystore）
+2. 导出 `band/sign/{debug,release}/{private,certificate}.pem`（快应用签名）
+3. 写出 `phone/keystore.properties`（Gradle 读密码用，已 gitignore）
+
+密码来源优先级：`BANDPAD_PASS` 环境变量 → 已有的 `keystore.properties` → 随机生成。**随机生成的那个密码请存好**，丢了就只能换签名（等于两端都要卸载重装）。
+
+**两端签名一旦确定就别单独重签其中一端**，否则通道会一直报 `fingerprint verify failed`。
+
+### 3. 出包
+
+```bash
+bash scripts/build.sh
+```
+
+产物落到 `dist/`。首次运行会 `npm install` 手环端依赖（走 npmmirror 镜像），之后约 30 秒出包。也可以分开编：
+
+```bash
+cd band  && npm run release        # → band/dist/*.rpk
+cd phone && gradle assembleRelease  # → app/build/outputs/apk/release/*.apk
+```
+
+---
+
+## 想改手感？
+
+| 想要的效果 | 改哪里 |
+|---|---|
+| 更容易 / 更难触发 | `band/src/pages/index/index.ux` 的 `THRESHOLD`（默认 28dp，调大更防误触） |
+| 翻页幅度 | `phone/.../FlipService.java` 的 `0.72f / 0.30f`（起止点占屏高比例） |
+| 翻页快慢 | 同上，`StrokeDescription(path, 0, 170)` 的 `170` 是毫秒 |
+| 防连翻间隔 | `index.ux` 的 `DEDUPE_MS`（默认 350ms） |
+| App 图标配色 | `scripts/gen_icon.java` 的 `BG` / `FG`，然后 `java scripts/gen_icon.java phone/app/src/main/res` |
+| 手环应用图标 | `java scripts/gen_band_logo.java band/src/common/logo_bf.png 128 --like scripts/ref/logo_official_128.png`（`--like` 让输出与官方 PNG 字节同构，见下方说明） |
+
+### 手环图标为什么这么挑剔
+
+Vela 的图标签码器对 PNG 有**四条**硬约束，违反任何一条都会在应用列表里显示成花屏/乱码：
+
+| 约束 | 官方 demo | 踩过的坑 |
+|---|---|---|
+| 尺寸 | 128×128 | 256×256 → 花屏 |
+| 像素格式 | 8 位 RGB（colortype 2，无 alpha） | ARGB 32 位 → 花屏 |
+| 压缩后体积 | IDAT 3408 字节（压缩比约 14:1） | 纯色大图压到 742 字节（66:1）→ 解码器按「压缩长度 × 系数」预分配缓冲不够 → 花屏 |
+| **图标文件名** | `logo.png` | **只换图片内容、文件名不变 → 一直读旧缓存。改名成 `logo_bf.png` 后立即正常** |
+
+`--like` 模式会照抄模板的 IHDR 和辅助 chunk（tEXt）、沿用模板的行过滤器策略（首行 Sub、其余 Up），并且在压缩后 IDAT 小于模板长度时自动退到不压缩，保证体积不低于 3408。所以生成出来的文件通常 49 KB 左右，这是正常的，不是写错了。
+
+**改图标的完整动作**（少一步都会显示成旧图或花屏）：
+
+1. 换一个新的文件名，例如 `logo_v2.png`，别覆盖原来的（缓存按「包名 + 资源路径」，同名永远读到旧位图）
+2. 同步改 `src/manifest.json` 的 `"icon": "/common/logo_v2.png"`
+3. bump `versionCode`，卸载旧版再装新版（覆盖安装不刷新图标位图）
+
+---
+
+## 原理与已踩过的坑
+
+留在这里，省得后来者重走一遍。
+
+**为什么不能直连蓝牙 HID**：9 Pro 的快应用沙箱里没有 BLE GATT、没有 WebSocket，手环也没有 Wi-Fi。所以手环不可能直接给自己发键鼠事件，「手环当蓝牙鼠标」这条路在 Vela 上走不通。唯一可行的是「手环发指令 → 手机用自己的无障碍权限替你滑」。
+
+**`permission denied` ≠ 签名问题**：SDK 状态码分得很细，`-6` 才是 `fingerprint verify failed`（签名不符），`-7` 是 `permission denied`。拿到 -7 却去查签名会白折腾一天——真正原因是漏了 `AuthApi.requestPermission`。
+
+**手环上的页面会把系统右滑手势吃掉**：根节点铺满全屏并绑 `touchend` 后，系统返回手势失效。解法是在 `touchend` 里自己判横向位移（`dx > 60 且 |dx| > |dy| * 1.5` → `router.back()`），并去掉 `@swipe` 绑定。
+
+**同一台手环只能注册一次监听**：已连通时再调 `addListener` 会被拒，而旧监听其实还在。现在的实现会识别这种「重复注册」并沿用现有通道，不会把状态刷成断开。
+
+**手环图标的四个坑，逐个踩过**：① 尺寸必须 128×128（256 会花屏）；② 必须 RGB 24 位无 alpha（ARGB 会花屏）；③ 不能压太狠，IDAT 要 ≥ 官方那张的 3408 字节，否则解码器的预分配缓冲不够（纯色图压到 742 字节就是花屏）；④ **图标位图按「包名 + 资源路径」缓存，换图必须换文件名**——前三条都改对了、只换内容不改名，界面上仍显示之前那张坏图，改名成 `logo_bf.png` 后立刻正常。另加一条通用规律：覆盖安装不刷新图标，换图标要卸载再装。
+
+**手环界面上有版本号**（底部 `上 0 · 下 0 · v1.1.4`），装完能直接确认是不是新包，不用靠猜。
+
+---
+
+## 保活（清后台还能用）
+
+通道跑在**无障碍服务**上，而无障碍服务由系统绑定：多任务里划掉 App，进程会死，但系统发现「无障碍服务还启用着却没在跑」会**自动重新绑定**，`onServiceConnected` 再触发一次，通道自己接回来。
+
+再叠两层：`JobScheduler` 每 15 分钟检查通道（断了就重连），加上电池白名单与自启动。
+
+**验证**：滑手环确认正常 → 划掉 App → 等 5 秒 → 再滑，还能翻页就说明自愈生效。
+
+**做不到的**：手动关掉无障碍、或系统在极端内存压力下清理时通道会断，打开一次 App 即恢复。微信那种「划不掉」靠的是厂商系统白名单，普通 App 申请不到，任何第三方都复制不了——所以没做「双进程互拉、1px 通知、静默播音频、循环闹钟」那些 Android 8 之后基本失效、还耗电易被冻结的偏方。
+
+---
+
+## 排错
+
+| 现象 | 原因 / 处理 |
+|---|---|
+| 日志 `注册监听失败: permission denied` | **没申请手环权限**。点 ⑤ 申请，手环上允许，再点 ④ 重连。最常见的一条 |
+| 日志「注册监听失败」但手环其实还能滑 | **重复注册**。SDK 对同一手环只允许注册一次，已连通时再点 ⑤ 会被拒。1.1 起会自动识别并沿用现有通道，⑤ 也会变灰 |
+| 状态卡在「正在注册监听」 | 1.1 已修，该状态只在注册进行中出现。若仍卡住，点 ④ 重连（会先解绑旧通道） |
+| 日志 `fingerprint verify failed` | 两端签名不同源，必须同一 keystore 重签 RPK 和 APK，并两端都卸载重装 |
+| 日志「手环上没装 RPK」 | RPK 没装进去，或装的包名不是 `com.bandpad.pageflip` |
+| App 一直「等待手环」 | 小米运动健康是否已连上手环；两端包名是否都为 `com.bandpad.pageflip` |
+| 手环显示已连接但没反应 | 手机无障碍被系统关了，回 App 重开；HyperOS 上给它加锁 |
+| 息屏一会儿就失效 | 省电策略没设「无限制」，或被清了后台 |
+| 某个 App 里翻不动 | 该 App 自绘手势或屏蔽无障碍注入，系统限制，无解 |
+| 手环上退不出去 | 右滑，或点右上角「退出」；旧包请重装 RPK |
+| AstroBox 装不上 RPK | 确认 RPK 没被浏览器改后缀；同版本号不会更替，需 bump `versionCode` |
+| 提示签名不正确 | 两端证书不一致，重跑 `bash scripts/gen-pem.sh` 后两端都重出包并重装 |
+
+---
+
+## 权限与隐私
+
+- 无障碍服务只声明了 `canPerformGestures`（模拟滑动），`canRetrieveWindowContent=false`——**不读屏幕内容、不截屏、不记录你看了什么**。
+- 没有常驻通知，没有联网权限，没有分析统计；翻页指令只在本机 BLE 通道里传。
+- 手环端 `manifest.json` 只申请 `system.interconnect` 与 `system.vibrator`。
+
+## 免责
+
+自用工具，未上架任何商店，按现状提供、不保证在所有 Vela 设备上可用。给设备侧载第三方快应用存在风险，刷机/装包前请自行确认能承担后果；手环固件大版本更新后，侧载通道有可能收紧。
+
+## 致谢
+
+- 小米穿戴 SDK（`xms-wearable-lib 1.4`）与官方 interconnect 示例包
+- [AstroBox](https://astrobox.online/) —— 手环端快应用的刷入工具
+- 米坛社区（BandBBS）的先行探索
+
+## 许可证
+
+本仓库自有代码以 [MIT](LICENSE) 发布。
+
+例外：`phone/app/libs/xms-wearable-lib_1.4_release.aar` 是小米的闭源穿戴 SDK，版权归小米，
+随仓库提供只为让你能直接编译，不适用 MIT。详见 [NOTICE.md](NOTICE.md)。
+
+## 安全说明
+
+- 仓库**不含**任何私钥、keystore 或明文密码；`phone/keystore/`、`band/sign/`、`*.pem`、`*.p12`、`keystore.properties`、`local.properties` 全部在 `.gitignore` 里。
+- 如果你 fork 后自己跑过 `gen-pem.sh`，请确认 `git status` 里没有出现 `.pem` 或 `.p12` 再 push。
+- 无障碍权限等于「允许代替你操作屏幕」，请只安装你信任的版本；本项目的源码全部公开，可自行编译核对。

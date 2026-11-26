@@ -1,0 +1,22 @@
+# 统一换行符：文本用 LF，避免 Windows 上 checkout 出来脚本跑不了
+* text=auto eol=lf
+
+# 脚本必须 LF，否则 Git Bash / sh 会报 “bad interpreter”
+*.sh  text eol=lf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件不做换行转换、不做 diff
+*.png  binary
+*.jpg  binary
+*.jpeg binary
+*.gif  binary
+*.ico  binary
+*.aar  binary
+*.jar  binary
+*.apk  binary
+*.rpk  binary
+*.p12  binary
+*.jks  binary
+*.pem  binary
+*.zip  binary

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">腕上翻页</string>
+    <string name="acc_desc">接收手环滑动指令，代替你完成手机翻页。仅使用「模拟手势」能力，不读取屏幕内容。</string>
+</resources>

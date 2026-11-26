@@ -1,0 +1,259 @@
+<template>
+  <div class="page" @touchstart="onTouchStart" @touchend="onTouchEnd">
+    <div class="topbar">
+      <div class="status">
+        <div class="dot" style="background-color: {{ linked ? '#1D9E75' : '#A32D2D' }}"></div>
+        <text class="status-text">{{ linked ? '已连接' : '未连接' }}</text>
+      </div>
+      <text class="exit" @click="exit">退出</text>
+    </div>
+
+    <div class="stage">
+      <text class="arrow">{{ arrow }}</text>
+      <text class="action">{{ actionText }}</text>
+    </div>
+
+    <div class="footer">
+      <text class="hint">上滑 → 下一页</text>
+      <text class="hint">下滑 → 上一页</text>
+      <text class="hint">右滑 → 退出</text>
+      <text class="count">上 {{ upCount }} · 下 {{ downCount }} · {{ ver }}</text>
+    </div>
+  </div>
+</template>
+
+<script>
+import interconnect from '@system.interconnect'
+import vibrator from '@system.vibrator'
+import router from '@system.router'
+
+const THRESHOLD = 28
+const EXIT_THRESHOLD = 60
+const DEDUPE_MS = 350
+// 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
+const VERSION = 'v1.1.4'
+
+let conn = null
+
+export default {
+  private: {
+    linked: false,
+    arrow: '↕',
+    actionText: '滑动试试',
+    upCount: 0,
+    downCount: 0,
+    ver: VERSION,
+    startX: 0,
+    startY: 0,
+    lastFireAt: 0
+  },
+
+  onInit() {
+    this.connect()
+  },
+
+  onShow() {
+    this.refreshState()
+  },
+
+  connect() {
+    if (conn) {
+      return
+    }
+    conn = interconnect.instance()
+    conn.onopen = () => {
+      this.linked = true
+    }
+    conn.onclose = () => {
+      this.linked = false
+    }
+    conn.onerror = () => {
+      this.linked = false
+    }
+  },
+
+  refreshState() {
+    this.connect()
+    if (!conn) {
+      return
+    }
+    try {
+      conn.getReadyState({
+        success: (res) => {
+          this.linked = res.status === 1
+        },
+        fail: () => {
+          this.linked = false
+        }
+      })
+    } catch (err) {
+      console.log('getReadyState error: ' + err)
+    }
+  },
+
+  exit() {
+    try {
+      router.back()
+    } catch (err) {
+      console.log('exit error: ' + err)
+    }
+  },
+
+  pickPoint(e, isEnd) {
+    const list = isEnd ? (e.changedTouches || e.touches) : e.touches
+    if (list && list.length > 0) {
+      return { x: list[0].clientX || 0, y: list[0].clientY || 0 }
+    }
+    return { x: e.clientX || 0, y: e.clientY || 0 }
+  },
+
+  onTouchStart(e) {
+    const p = this.pickPoint(e, false)
+    this.startX = p.x
+    this.startY = p.y
+  },
+
+  onTouchEnd(e) {
+    const p = this.pickPoint(e, true)
+    const dx = p.x - this.startX
+    const dy = this.startY - p.y
+
+    // 右滑退出：横向位移要明显压过纵向，才不会和上下翻页打架
+    if (dx > EXIT_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      this.exit()
+      return
+    }
+
+    this.judge(dy)
+  },
+
+  judge(dy) {
+    if (Math.abs(dy) < THRESHOLD) {
+      return
+    }
+    const now = Date.now()
+    if (now - this.lastFireAt < DEDUPE_MS) {
+      return
+    }
+    this.lastFireAt = now
+    this.fire(dy > 0 ? 1 : -1)
+  },
+
+  fire(dir) {
+    if (!conn) {
+      this.connect()
+    }
+    try {
+      conn.send({
+        data: { t: 'page', d: dir },
+        success: () => {
+          this.linked = true
+        },
+        fail: () => {
+          this.linked = false
+        }
+      })
+    } catch (err) {
+      console.log('send error: ' + err)
+      this.linked = false
+    }
+
+    try {
+      vibrator.vibrate({ mode: 'short' })
+    } catch (err) {
+      console.log('vibrate not supported')
+    }
+
+    if (dir > 0) {
+      this.upCount = this.upCount + 1
+      this.arrow = '↑'
+      this.actionText = '下一页'
+    } else {
+      this.downCount = this.downCount + 1
+      this.arrow = '↓'
+      this.actionText = '上一页'
+    }
+  }
+}
+</script>
+
+<style>
+.page {
+  width: 100%;
+  height: 100%;
+  background-color: #000000;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 8px;
+}
+
+.topbar {
+  width: 100%;
+  height: 20px;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.status {
+  flex-direction: row;
+  align-items: center;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  margin-right: 5px;
+}
+
+.status-text {
+  font-size: 10px;
+  color: #B4B2A9;
+}
+
+.exit {
+  font-size: 11px;
+  color: #F1EFE8;
+  background-color: #3A3A38;
+  border-radius: 9px;
+  height: 18px;
+  padding: 0 9px;
+  text-align: center;
+}
+
+.stage {
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.arrow {
+  font-size: 64px;
+  color: #5DCAA5;
+}
+
+.action {
+  font-size: 13px;
+  color: #F1EFE8;
+  margin-top: 4px;
+}
+
+.footer {
+  flex-direction: column;
+  align-items: center;
+}
+
+.hint {
+  font-size: 10px;
+  color: #888780;
+  margin-top: 2px;
+}
+
+.count {
+  font-size: 9px;
+  color: #5F5E5A;
+  margin-top: 8px;
+}
+</style>

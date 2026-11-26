@@ -1,0 +1,10 @@
+<script>
+export default {
+  onCreate() {
+    console.log('bandpad app created')
+  },
+  onDestroy() {
+    console.log('bandpad app destroyed')
+  }
+}
+</script>
