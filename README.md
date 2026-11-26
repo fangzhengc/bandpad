@@ -30,7 +30,7 @@
 
 ## 两种用法
 
-**只想用，不打算编译** —— 直接装 `dist/` 里现成的两个包。它们是同一次签名出来的，装完即可连通：
+**只想用，不打算编译** —— 直接装 `dist/` 里现成的两个包（也可以从 [Releases](https://github.com/fangzhengc/bandpad/releases/latest) 下载）。它们是同一次签名出来的，装完即可连通：
 
 | 文件 | 装到哪 |
 |---|---|
@@ -42,7 +42,7 @@
 **想改代码** —— clone 下来就能编，小米穿戴 SDK 已随仓库提供，不用自己申请：
 
 ```bash
-git clone <仓库地址>
+git clone https://github.com/fangzhengc/bandpad.git
 cd bandpad
 bash scripts/gen-pem.sh    # 生成你自己的签名，必需，见下文
 bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
