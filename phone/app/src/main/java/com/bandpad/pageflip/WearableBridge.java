@@ -420,6 +420,24 @@ public final class WearableBridge {
         }
     }
 
+    /** 从 payload 里取连点次数（手环发 {"t":"tap","n":2}）。 */
+    private static long parseCount(String payload) {
+        try {
+            JSONObject obj = new JSONObject(payload);
+            return obj.optInt("n", 2);
+        } catch (Throwable ignored) {
+            Matcher m = Pattern.compile("\"n\"\\s*:\\s*(\\d+)").matcher(payload);
+            if (m.find()) {
+                try {
+                    return Long.parseLong(m.group(1));
+                } catch (Throwable ignored2) {
+                    return 2;
+                }
+            }
+            return 2;
+        }
+    }
+
     private static String text(String s) {
         return s == null ? "未知错误" : s;
     }
@@ -443,10 +461,12 @@ public final class WearableBridge {
 
         int dir = 0;
         String type = "";
+        String axis = "v";
         try {
             JSONObject obj = new JSONObject(text);
             dir = obj.optInt("d", 0);
             type = obj.optString("t", "");
+            axis = obj.optString("a", "v");
         } catch (Throwable ignored) {
             Matcher m = DIR_PATTERN.matcher(text);
             if (m.find()) {
@@ -456,6 +476,17 @@ public final class WearableBridge {
                     dir = 0;
                 }
             }
+        }
+
+        // 连点：两下点赞，三下收藏
+        if ("tap".equals(type)) {
+            int n = (int) parseCount(text);
+            if (n < 2) {
+                n = 2;
+            }
+            FlipService.tapFromBridge(n);
+            UiLog.add((n >= 3 ? "三击收藏" : "双击点赞") + " 已执行");
+            return;
         }
 
         // 长按加速：手环按住 = 落下手指并保持，松手 = 抬起
@@ -474,7 +505,11 @@ public final class WearableBridge {
             UiLog.add("收到未知指令：" + text);
             return;
         }
-        boolean ok = FlipService.flipFromBridge(dir);
-        UiLog.add((dir > 0 ? "下一页" : "上一页") + (ok ? " 已执行" : " 失败"));
+        // a = h：左右滑，在手机上横滑一下；默认 v：上下翻页
+        boolean horizontal = "h".equals(axis);
+        boolean ok = FlipService.flipFromBridge(dir, horizontal);
+        String what = horizontal ? (dir > 0 ? "向左滑" : "向右滑")
+                : (dir > 0 ? "下一页" : "上一页");
+        UiLog.add(what + (ok ? " 已执行" : " 失败"));
     }
 }

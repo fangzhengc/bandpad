@@ -1,8 +1,8 @@
 {
   "package": "com.bandpad.pageflip",
   "name": "腕上翻页",
-  "versionName": "1.1.5",
-  "versionCode": 7,
+  "versionName": "1.1.6",
+  "versionCode": 8,
   "minPlatformVersion": 1200,
   "icon": "/common/logo_bf.png",
   "simulationVersion": "default",

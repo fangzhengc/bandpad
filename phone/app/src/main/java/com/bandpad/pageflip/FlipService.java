@@ -44,12 +44,20 @@ public class FlipService extends AccessibilityService {
     }
 
     public static boolean flipFromBridge(int dir) {
+        return flipFromBridge(dir, false);
+    }
+
+    /**
+     * @param dir        1 = 手指往左 / 往上，-1 = 往右 / 往下
+     * @param horizontal true = 横向滑一下（左右滑），false = 竖向翻页
+     */
+    public static boolean flipFromBridge(int dir, boolean horizontal) {
         FlipService service = sInstance;
         if (service == null) {
-            UiLog.add("无障碍服务未开启，无法翻页");
+            UiLog.add("无障碍服务未开启，无法滑动手势");
             return false;
         }
-        return service.flip(dir);
+        return service.flip(dir, horizontal);
     }
 
     /** 手环上「按住不动」：落下手指并保持，用于抖音 2 倍速。 */
@@ -60,6 +68,20 @@ public class FlipService extends AccessibilityService {
             return false;
         }
         return service.startHold();
+    }
+
+    /**
+     * 手环上连点：2 下 = 双击（点赞），3 下 = 三击（收藏）。
+     *
+     * @param n 连点次数
+     */
+    public static void tapFromBridge(int n) {
+        FlipService service = sInstance;
+        if (service == null) {
+            UiLog.add("无障碍服务未开启，无法双击");
+            return;
+        }
+        service.tap(n);
     }
 
     /** 手环松手：抬起手指，恢复 1 倍速。 */
@@ -106,34 +128,72 @@ public class FlipService extends AccessibilityService {
     }
 
     /**
-     * @param dir 1 = 下一页（内容向上滚），-1 = 上一页
+     * @param dir        1 = 手指往左 / 往上，-1 = 往右 / 往下
+     * @param horizontal true = 横向滑一下，false = 竖向翻页
      */
-    private boolean flip(int dir) {
+    private boolean flip(int dir, boolean horizontal) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             UiLog.add("系统版本过低，不支持模拟手势");
             return false;
         }
         if (holdActive) {
-            // 正在加速中又收到翻页，先松开，否则两个手势会打架
+            // 正在加速中又收到滑动手势，先松开，否则两个手势会打架
             releaseHold();
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
-        float x = dm.widthPixels * 0.5f;
+        float w = dm.widthPixels;
         float h = dm.heightPixels;
-        float fromY = dir > 0 ? h * 0.72f : h * 0.30f;
-        float toY = dir > 0 ? h * 0.30f : h * 0.72f;
 
         Path path = new Path();
-        path.moveTo(x, fromY);
-        path.lineTo(x, toY);
+        if (horizontal) {
+            // 横滑落在屏幕中部，起止点都离左右边缘远一点，避免被当成系统「返回」手势
+            float y = h * 0.5f;
+            float fromX = dir > 0 ? w * 0.75f : w * 0.25f;
+            float toX = dir > 0 ? w * 0.25f : w * 0.75f;
+            path.moveTo(fromX, y);
+            path.lineTo(toX, y);
+        } else {
+            float x = w * 0.5f;
+            float fromY = dir > 0 ? h * 0.72f : h * 0.30f;
+            float toY = dir > 0 ? h * 0.30f : h * 0.72f;
+            path.moveTo(x, fromY);
+            path.lineTo(x, toY);
+        }
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
-        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 170));
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 180));
         try {
             return dispatchGesture(builder.build(), null, null);
         } catch (Throwable t) {
             UiLog.add("模拟滑动失败：" + t.getMessage());
             return false;
+        }
+    }
+
+    /** 在画面中央连点 n 下：抖音双击点赞，三击收藏。 */
+    private void tap(int n) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            UiLog.add("系统版本过低，不支持模拟手势");
+            return;
+        }
+        if (holdActive) {
+            releaseHold();
+        }
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        float x = dm.widthPixels * 0.5f;
+        float y = dm.heightPixels * 0.45f;
+
+        GestureDescription.Builder builder = new GestureDescription.Builder();
+        for (int i = 0; i < n; i++) {
+            Path path = new Path();
+            path.moveTo(x, y);
+            // 每下 40ms，间隔 110ms：慢于 300ms 就不算连击，快于 App 的双击阈值
+            builder.addStroke(new GestureDescription.StrokeDescription(path, i * 110L, 40));
+        }
+        try {
+            dispatchGesture(builder.build(), null, null);
+        } catch (Throwable t) {
+            UiLog.add("连点失败：" + t.getMessage());
         }
     }
 

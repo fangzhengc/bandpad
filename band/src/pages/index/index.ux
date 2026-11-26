@@ -14,10 +14,11 @@
     </div>
 
     <div class="footer">
-      <text class="hint">上滑 / 左滑 → 下一页</text>
-      <text class="hint">下滑 / 右滑 → 上一页</text>
+      <text class="hint">上滑 / 下滑 → 上下翻页</text>
+      <text class="hint">左滑 / 右滑 → 横滑一下</text>
+      <text class="hint">双击点赞 · 三击收藏</text>
       <text class="hint">按住不动 → 2 倍速</text>
-      <text class="count">下 {{ upCount }} · 上 {{ downCount }} · ×2 {{ holdCount }} · {{ ver }}</text>
+      <text class="count">翻 {{ pageCount }} · 横 {{ swipeCount }} · ×2 {{ holdCount }} · {{ ver }}</text>
     </div>
   </div>
 </template>
@@ -35,8 +36,10 @@ const DEDUPE_MS = 350
 const LONG_PRESS_MS = 420
 // 手指移动超过这个距离（dp）就取消长按，判定为滑动
 const MOVE_TOLERANCE = 18
+// 连击判定窗口：两下间隔小于这个时间才算双击/三击
+const TAP_GAP_MS = 280
 // 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
-const VERSION = 'v1.1.5'
+const VERSION = 'v1.1.6'
 
 let conn = null
 
@@ -45,15 +48,17 @@ export default {
     linked: false,
     arrow: '↕',
     actionText: '滑动或长按',
-    upCount: 0,
-    downCount: 0,
+    pageCount: 0,
+    swipeCount: 0,
     holdCount: 0,
     ver: VERSION,
     startX: 0,
     startY: 0,
     lastFireAt: 0,
     holding: false,
-    pressTimer: null
+    pressTimer: null,
+    tapCount: 0,
+    tapTimer: null
   },
 
   onInit() {
@@ -66,11 +71,13 @@ export default {
 
   onHide() {
     this.cancelPressTimer()
+    this.cancelTapTimer()
     this.endHold()
   },
 
   onDestroy() {
     this.cancelPressTimer()
+    this.cancelTapTimer()
     this.endHold()
   },
 
@@ -113,6 +120,7 @@ export default {
 
   exit() {
     this.cancelPressTimer()
+    this.cancelTapTimer()
     this.endHold()
     try {
       router.back()
@@ -134,6 +142,14 @@ export default {
       clearTimeout(this.pressTimer)
       this.pressTimer = null
     }
+  },
+
+  cancelTapTimer() {
+    if (this.tapTimer) {
+      clearTimeout(this.tapTimer)
+      this.tapTimer = null
+    }
+    this.tapCount = 0
   },
 
   onTouchStart(e) {
@@ -196,24 +212,60 @@ export default {
     const ax = Math.abs(dx)
     const ay = Math.abs(dy)
     if (Math.max(ax, ay) < THRESHOLD) {
+      // 没位移 = 点按：连点两下点赞，连点三下收藏
+      this.registerTap()
       return
     }
 
     if (ax > ay * AXIS_RATIO) {
-      // 左滑 → 下一页，右滑 → 上一页
-      this.judge(dx < 0 ? 1 : -1)
+      // 左右滑 = 在手机上横向滑一下（手指往左 / 往右），不再是翻页
+      this.judge(dx < 0 ? 1 : -1, true)
     } else {
-      this.judge(dy > 0 ? 1 : -1)
+      this.judge(dy > 0 ? 1 : -1, false)
     }
   },
 
-  judge(dir) {
+  registerTap() {
+    this.tapCount = this.tapCount + 1
+    if (this.tapTimer) {
+      clearTimeout(this.tapTimer)
+      this.tapTimer = null
+    }
+    if (this.tapCount >= 3) {
+      this.tapCount = 0
+      this.fireTap(3)
+      return
+    }
+    // 停手 280ms 再决定是单击还是双击；单击不发指令，避免误触
+    this.tapTimer = setTimeout(() => {
+      const n = this.tapCount
+      this.tapCount = 0
+      this.tapTimer = null
+      if (n >= 2) {
+        this.fireTap(2)
+      }
+    }, TAP_GAP_MS)
+  },
+
+  fireTap(n) {
+    this.send({ t: 'tap', n: n })
+    this.vibrate()
+    if (n >= 3) {
+      this.arrow = '★'
+      this.actionText = '已收藏'
+    } else {
+      this.arrow = '♥'
+      this.actionText = '已点赞'
+    }
+  },
+
+  judge(dir, horizontal) {
     const now = Date.now()
     if (now - this.lastFireAt < DEDUPE_MS) {
       return
     }
     this.lastFireAt = now
-    this.fire(dir)
+    this.fire(dir, horizontal)
   },
 
   send(payload) {
@@ -244,19 +296,21 @@ export default {
     }
   },
 
-  fire(dir) {
-    this.send({ t: 'page', d: dir })
+  fire(dir, horizontal) {
+    // a: v = 竖向手势，h = 横向手势；d: 1 = 手指往左/往上，-1 = 往右/往下
+    this.send({ t: 'page', d: dir, a: horizontal ? 'h' : 'v' })
     this.vibrate()
 
-    if (dir > 0) {
-      this.upCount = this.upCount + 1
-      this.arrow = '↑'
-      this.actionText = '下一页'
-    } else {
-      this.downCount = this.downCount + 1
-      this.arrow = '↓'
-      this.actionText = '上一页'
+    if (horizontal) {
+      this.swipeCount = this.swipeCount + 1
+      this.arrow = dir > 0 ? '←' : '→'
+      this.actionText = dir > 0 ? '向左滑' : '向右滑'
+      return
     }
+
+    this.pageCount = this.pageCount + 1
+    this.arrow = dir > 0 ? '↑' : '↓'
+    this.actionText = dir > 0 ? '下一页' : '上一页'
   }
 }
 </script>

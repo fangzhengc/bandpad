@@ -231,6 +231,34 @@ public class MainActivity extends Activity {
             }
         }));
 
+        root.addView(buildButton("⑨ 测试 向左滑", 10, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FlipService.flipFromBridge(1, true);
+            }
+        }));
+
+        root.addView(buildButton("⑩ 测试 向右滑", 10, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FlipService.flipFromBridge(-1, true);
+            }
+        }));
+
+        root.addView(buildButton("⑪ 测试 双击（点赞）", 10, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FlipService.tapFromBridge(2);
+            }
+        }));
+
+        root.addView(buildButton("⑫ 测试 三击（收藏）", 10, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FlipService.tapFromBridge(3);
+            }
+        }));
+
         TextView logTitle = new TextView(this);
         logTitle.setText("运行记录");
         logTitle.setTextSize(13f);
