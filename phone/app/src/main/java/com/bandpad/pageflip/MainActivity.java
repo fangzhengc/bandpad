@@ -133,7 +133,7 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("手环滑一下 → 手机翻一页");
+        subtitle.setText("手环滑一下 → 手机翻一页 · 按住 → 2 倍速");
         subtitle.setTextSize(13f);
         subtitle.setTextColor(Color.parseColor("#888780"));
         LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
@@ -209,6 +209,25 @@ public class MainActivity extends Activity {
             @Override
             public void onClick(View v) {
                 openAutoStart();
+            }
+        }));
+
+        root.addView(buildButton("⑧ 测试长按加速（按住 1.5 秒）", 10, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                if (!FlipService.pressStartFromBridge()) {
+                    Toast.makeText(MainActivity.this,
+                            "无障碍服务没开，先点①", Toast.LENGTH_SHORT).show();
+                    return;
+                }
+                Toast.makeText(MainActivity.this,
+                        "按住 1.5 秒后自动松开，观察前台画面是否加速", Toast.LENGTH_SHORT).show();
+                ui.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        FlipService.pressEndFromBridge();
+                    }
+                }, 1500);
             }
         }));
 

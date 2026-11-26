@@ -1,5 +1,5 @@
 <template>
-  <div class="page" @touchstart="onTouchStart" @touchend="onTouchEnd">
+  <div class="page" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
     <div class="topbar">
       <div class="status">
         <div class="dot" style="background-color: {{ linked ? '#1D9E75' : '#A32D2D' }}"></div>
@@ -14,10 +14,10 @@
     </div>
 
     <div class="footer">
-      <text class="hint">上滑 → 下一页</text>
-      <text class="hint">下滑 → 上一页</text>
-      <text class="hint">右滑 → 退出</text>
-      <text class="count">上 {{ upCount }} · 下 {{ downCount }} · {{ ver }}</text>
+      <text class="hint">上滑 / 左滑 → 下一页</text>
+      <text class="hint">下滑 / 右滑 → 上一页</text>
+      <text class="hint">按住不动 → 2 倍速</text>
+      <text class="count">下 {{ upCount }} · 上 {{ downCount }} · ×2 {{ holdCount }} · {{ ver }}</text>
     </div>
   </div>
 </template>
@@ -28,10 +28,15 @@ import vibrator from '@system.vibrator'
 import router from '@system.router'
 
 const THRESHOLD = 28
-const EXIT_THRESHOLD = 60
+// 横向位移要压过纵向的 1.2 倍才算左右滑，避免斜滑时抖动串味
+const AXIS_RATIO = 1.2
 const DEDUPE_MS = 350
+// 按住超过这个时间（毫秒）就进入「2 倍速」长按模式
+const LONG_PRESS_MS = 420
+// 手指移动超过这个距离（dp）就取消长按，判定为滑动
+const MOVE_TOLERANCE = 18
 // 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
-const VERSION = 'v1.1.4'
+const VERSION = 'v1.1.5'
 
 let conn = null
 
@@ -39,13 +44,16 @@ export default {
   private: {
     linked: false,
     arrow: '↕',
-    actionText: '滑动试试',
+    actionText: '滑动或长按',
     upCount: 0,
     downCount: 0,
+    holdCount: 0,
     ver: VERSION,
     startX: 0,
     startY: 0,
-    lastFireAt: 0
+    lastFireAt: 0,
+    holding: false,
+    pressTimer: null
   },
 
   onInit() {
@@ -54,6 +62,16 @@ export default {
 
   onShow() {
     this.refreshState()
+  },
+
+  onHide() {
+    this.cancelPressTimer()
+    this.endHold()
+  },
+
+  onDestroy() {
+    this.cancelPressTimer()
+    this.endHold()
   },
 
   connect() {
@@ -66,9 +84,11 @@ export default {
     }
     conn.onclose = () => {
       this.linked = false
+      this.endHold()
     }
     conn.onerror = () => {
       this.linked = false
+      this.endHold()
     }
   },
 
@@ -92,6 +112,8 @@ export default {
   },
 
   exit() {
+    this.cancelPressTimer()
+    this.endHold()
     try {
       router.back()
     } catch (err) {
@@ -107,45 +129,100 @@ export default {
     return { x: e.clientX || 0, y: e.clientY || 0 }
   },
 
+  cancelPressTimer() {
+    if (this.pressTimer) {
+      clearTimeout(this.pressTimer)
+      this.pressTimer = null
+    }
+  },
+
   onTouchStart(e) {
     const p = this.pickPoint(e, false)
     this.startX = p.x
     this.startY = p.y
+    this.holding = false
+    this.cancelPressTimer()
+    // 按住不动到点就进入加速模式；中途滑动会被 onTouchMove 取消
+    this.pressTimer = setTimeout(() => {
+      this.pressTimer = null
+      this.beginHold()
+    }, LONG_PRESS_MS)
+  },
+
+  onTouchMove(e) {
+    if (this.holding) {
+      return
+    }
+    const p = this.pickPoint(e, false)
+    if (Math.abs(p.x - this.startX) > MOVE_TOLERANCE
+      || Math.abs(p.y - this.startY) > MOVE_TOLERANCE) {
+      this.cancelPressTimer()
+    }
+  },
+
+  beginHold() {
+    if (this.holding) {
+      return
+    }
+    this.holding = true
+    this.holdCount = this.holdCount + 1
+    this.arrow = '2×'
+    this.actionText = '加速中，松手恢复'
+    this.send({ t: 'press' })
+    this.vibrate()
+  },
+
+  endHold() {
+    if (!this.holding) {
+      return
+    }
+    this.holding = false
+    this.send({ t: 'release' })
+    this.arrow = '↕'
+    this.actionText = '已恢复 1 倍速'
   },
 
   onTouchEnd(e) {
+    this.cancelPressTimer()
+    // 长按松手：只发「抬起」，不要再当成一次滑动
+    if (this.holding) {
+      this.endHold()
+      return
+    }
+
     const p = this.pickPoint(e, true)
     const dx = p.x - this.startX
     const dy = this.startY - p.y
-
-    // 右滑退出：横向位移要明显压过纵向，才不会和上下翻页打架
-    if (dx > EXIT_THRESHOLD && Math.abs(dx) > Math.abs(dy) * 1.5) {
-      this.exit()
+    const ax = Math.abs(dx)
+    const ay = Math.abs(dy)
+    if (Math.max(ax, ay) < THRESHOLD) {
       return
     }
 
-    this.judge(dy)
+    if (ax > ay * AXIS_RATIO) {
+      // 左滑 → 下一页，右滑 → 上一页
+      this.judge(dx < 0 ? 1 : -1)
+    } else {
+      this.judge(dy > 0 ? 1 : -1)
+    }
   },
 
-  judge(dy) {
-    if (Math.abs(dy) < THRESHOLD) {
-      return
-    }
+  judge(dir) {
     const now = Date.now()
     if (now - this.lastFireAt < DEDUPE_MS) {
       return
     }
     this.lastFireAt = now
-    this.fire(dy > 0 ? 1 : -1)
+    this.fire(dir)
   },
 
-  fire(dir) {
+  send(payload) {
     if (!conn) {
       this.connect()
     }
     try {
       conn.send({
-        data: { t: 'page', d: dir },
+        data: payload,
         success: () => {
           this.linked = true
         },
@@ -157,12 +234,19 @@ export default {
       console.log('send error: ' + err)
       this.linked = false
     }
+  },
 
+  vibrate() {
     try {
       vibrator.vibrate({ mode: 'short' })
     } catch (err) {
       console.log('vibrate not supported')
     }
+  },
+
+  fire(dir) {
+    this.send({ t: 'page', d: dir })
+    this.vibrate()
 
     if (dir > 0) {
       this.upCount = this.upCount + 1

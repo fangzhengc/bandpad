@@ -442,9 +442,11 @@ public final class WearableBridge {
         }
 
         int dir = 0;
+        String type = "";
         try {
             JSONObject obj = new JSONObject(text);
             dir = obj.optInt("d", 0);
+            type = obj.optString("t", "");
         } catch (Throwable ignored) {
             Matcher m = DIR_PATTERN.matcher(text);
             if (m.find()) {
@@ -454,6 +456,18 @@ public final class WearableBridge {
                     dir = 0;
                 }
             }
+        }
+
+        // 长按加速：手环按住 = 落下手指并保持，松手 = 抬起
+        if ("press".equals(type)) {
+            boolean ok = FlipService.pressStartFromBridge();
+            UiLog.add(ok ? "长按加速开始（2 倍速）" : "长按加速失败");
+            return;
+        }
+        if ("release".equals(type)) {
+            FlipService.pressEndFromBridge();
+            UiLog.add("长按加速结束");
+            return;
         }
 
         if (dir == 0) {
