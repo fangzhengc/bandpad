@@ -1,8 +1,8 @@
 {
   "package": "com.bandpad.pageflip",
   "name": "手环 9 Pro",
-  "versionName": "1.2.1",
-  "versionCode": 12,
+  "versionName": "1.2.2",
+  "versionCode": 13,
   "minPlatformVersion": 1200,
   "icon": "/common/logo_bf.png",
   "simulationVersion": "default",
@@ -18,6 +18,12 @@
     },
     {
       "name": "system.vibrator"
+    },
+    {
+      "name": "system.app"
+    },
+    {
+      "name": "system.device"
     }
   ],
   "config": {

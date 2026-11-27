@@ -40,10 +40,10 @@
 | 文件 | 装到哪 | 应用列表里显示的名字 |
 |---|---|---|
 | `dist/bandpad.apk` | 手机（所有机型共用这一个） | 腕上翻页 |
-| `dist/com.bandpad.pageflip.release.1.2.1.9pro.rpk` | 小米手环 9 Pro（AstroBox 刷入） | 手环 9 Pro |
-| `dist/com.bandpad.pageflip.release.1.2.1.watch6.rpk` | REDMI Watch 6（AstroBox 刷入） | Watch 6 |
+| `dist/com.bandpad.pageflip.release.1.2.2.9pro.rpk` | 小米手环 9 Pro（AstroBox 刷入） | 手环 9 Pro |
+| `dist/com.bandpad.pageflip.release.1.2.2.watch6.rpk` | REDMI Watch 6（AstroBox 刷入） | Watch 6 |
 
-> 仓库只放**当前这一个版本**：`1.2.1 / versionCode 12`，两端同版本号、同签名。旧版本的安装包不再随仓库分发。
+> 手表端当前为 `1.2.2 / versionCode 13`，手机端为 `1.2.1 / versionCode 12`（本轮只动了手表端，APK 无需更新）。两端同包名、同签名，版本号不必相等。旧版本的安装包不再随仓库分发。
 >
 > 两个 RPK **包名和签名完全相同**，只是界面基准宽度和图标不同：9 Pro 版 `designWidth=168`，Watch 6 版 `designWidth=216`。装错机型不会崩，但字会偏大或偏小。两个包的**应用名也不同**（见上表），装完看名字就知道装的是哪版。
 
@@ -85,8 +85,8 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 
 **准备**：手机装 AstroBox，把对应机型的 RPK 存到手机任意目录（下载目录即可）：
 
-- 小米手环 9 Pro → `dist/com.bandpad.pageflip.release.1.2.1.9pro.rpk`
-- REDMI Watch 6 → `dist/com.bandpad.pageflip.release.1.2.1.watch6.rpk`
+- 小米手环 9 Pro → `dist/com.bandpad.pageflip.release.1.2.2.9pro.rpk`
+- REDMI Watch 6 → `dist/com.bandpad.pageflip.release.1.2.2.watch6.rpk`
 
 **连接手环**（已连过可跳过）：
 
@@ -103,7 +103,7 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 4. 点 **一键安装**，等 5～15 秒，手环上会弹出安装进度条
 5. 装完手表应用列表里出现应用图标，**名字就是你的设备型号**（手环 9 Pro 版显示「手环 9 Pro」，Watch 6 版显示「Watch 6」），两台设备都装了也不会混
 
-> **升级覆盖安装**：新 RPK 的 `versionCode` 必须比已装的大，否则手环不会更替。本项目手表端当前为 `1.2.1 / versionCode 12`，旧版本可直接覆盖升级。
+> **升级覆盖安装**：新 RPK 的 `versionCode` 必须比已装的大，否则手环不会更替。本项目手表端当前为 `1.2.2 / versionCode 13`，旧版本可直接覆盖升级。
 
 > AstroBox 只是「把文件送进手环」的工具，不改变应用行为。装了 AstroBox 不必保持它常驻，日常翻页完全不需要它。
 
@@ -128,7 +128,7 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 
 ### 4. 使用
 
-手环上打开「腕上翻页」：
+手表上打开对应应用（名字就是设备型号）：
 
 - 顶部绿点 = 手机通道已连上；红点 = 没连上（回手机 App 点 ④）
 - **上滑 → 下一页**，**下滑 → 上一页**，一次一页，带震动反馈
@@ -140,6 +140,7 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 - **锁定后上滑 → 取消锁定**：抬起手机上的手指，回到 1 倍速；锁定时手环上的翻页/横滑会被忽略，避免误操作
 - **（Watch 6）底部还有一排按钮**：`▲ 上一页` / `▼ 下一页` / `2×`。手表的上下滑经常被系统手势（回表盘、通知中心）抢走，滑不动时点按钮；`2×` 是点一下锁定加速、再点一下取消
 - **退出只走右上角按钮**，四个方向的滑动都不再触发退出，避免刷视频时误退
+- **点左上角「已连接 / 未连接」→ 打开自检面板**：直接显示当前运行的**包名、版本号、机型、屏幕尺寸、平台版本**。刷完包点一下就能确认装对没有，不用猜
 - 手机 App 的「运行记录」能看到每条指令及执行结果
 
 ---

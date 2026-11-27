@@ -1,16 +1,26 @@
 <template>
   <div class="page" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" @touchcancel="onTouchCancel">
     <div class="topbar">
-      <div class="status">
+      <div class="status" @click="toggleDiag">
         <div class="dot" style="background-color: {{ linked ? '#1D9E75' : '#A32D2D' }}"></div>
         <text class="status-text">{{ linked ? '已连接' : '未连接' }}</text>
+        <text class="diag-tip">{{ showDiag ? '✕' : 'ⓘ' }}</text>
       </div>
       <text class="exit" @click="exit">退出</text>
     </div>
 
-    <div class="stage">
+    <div class="stage" if="{{ showStage }}">
       <text class="arrow">{{ arrow }}</text>
       <text class="action">{{ actionText }}</text>
+    </div>
+
+    <div class="diag" if="{{ showDiag }}">
+      <text class="diag-line">{{ pkg }}</text>
+      <text class="diag-line">{{ verText }}</text>
+      <text class="diag-line">{{ modelText }}</text>
+      <text class="diag-line">{{ screenText }}</text>
+      <text class="diag-line">{{ platText }}</text>
+      <text class="diag-line">通道 {{ linked ? '已连接' : '未连接' }}</text>
     </div>
 
     <div class="pad" if="{{ pad }}">
@@ -33,6 +43,8 @@
 import interconnect from '@system.interconnect'
 import vibrator from '@system.vibrator'
 import router from '@system.router'
+import app from '@system.app'
+import device from '@system.device'
 import platform from '../../common/platform'
 
 const THRESHOLD = 26
@@ -53,7 +65,7 @@ const V_FIRE = 26
 // 加速中下滑超过这个距离 = 锁定 2 倍速；锁定后上滑超过这个距离 = 取消锁定
 const LOCK_THRESHOLD = 24
 // 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
-const VERSION = 'v1.2.1'
+const VERSION = 'v1.2.2'
 
 let conn = null
 
@@ -69,6 +81,13 @@ export default {
     ver: VERSION,
     pad: platform.pad,
     devName: platform.name,
+    showStage: true,
+    showDiag: false,
+    pkg: '读取中…',
+    verText: '',
+    modelText: '',
+    screenText: '',
+    platText: '',
     startX: 0,
     startY: 0,
     lastFireAt: 0,
@@ -84,6 +103,7 @@ export default {
 
   onInit() {
     this.connect()
+    this.loadDiag()
   },
 
   onShow() {
@@ -133,6 +153,48 @@ export default {
     conn.onerror = () => {
       this.linked = false
       this.endHold()
+    }
+  },
+
+  // 自检面板：点左上角状态区切换。用来确认手表上跑的到底是哪个包、什么版本
+  toggleDiag() {
+    if (this.showDiag) {
+      this.showDiag = false
+      this.showStage = true
+      return
+    }
+    this.loadDiag()
+    this.showDiag = true
+    this.showStage = false
+  },
+
+  loadDiag() {
+    try {
+      app.getInfo({
+        success: (d) => {
+          this.pkg = d.packageName || '?'
+          this.verText = 'v' + (d.versionName || '?') + ' (' + (d.versionCode || 0) + ')'
+        },
+        fail: () => {
+          this.pkg = '读不到包名'
+        }
+      })
+    } catch (e) {
+      this.pkg = 'app.getInfo 不可用'
+    }
+    try {
+      device.getInfo({
+        success: (d) => {
+          this.modelText = (d.brand ? d.brand + ' ' : '') + (d.model || '?')
+          this.screenText = (d.screenWidth || 0) + '×' + (d.screenHeight || 0)
+          this.platText = (d.platformVersionName || '?') + ' / API ' + (d.platformVersionCode || 0)
+        },
+        fail: () => {
+          this.modelText = '读不到机型'
+        }
+      })
+    } catch (e) {
+      this.modelText = 'device.getInfo 不可用'
     }
   },
 
@@ -517,10 +579,30 @@ export default {
   text-align: center;
 }
 
+.diag-tip {
+  font-size: 10px;
+  color: #5DCAA5;
+  margin-left: 5px;
+}
+
 .stage {
   flex-direction: column;
   align-items: center;
   justify-content: center;
+}
+
+.diag {
+  width: 100%;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 0 4px;
+}
+
+.diag-line {
+  font-size: 11px;
+  color: #F1EFE8;
+  margin-bottom: 4px;
 }
 
 .arrow {
