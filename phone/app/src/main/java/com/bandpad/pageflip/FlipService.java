@@ -8,17 +8,30 @@ import android.os.Handler;
 import android.os.Looper;
 import android.util.DisplayMetrics;
 import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
 
 /**
  * 无障碍服务：唯一职责是在当前前台应用上模拟手势。
  *   - 一次短滑动 → 翻页
  *   - 按住不放 → 长按（抖音/快手等的 2 倍速），松手抬起
- * 不读取屏幕内容，不截屏。
+ * 平时只派发手势，不碰界面内容；只有「收藏」会在当前界面里找一次「收藏」按钮的节点，
+ * 不截屏、不保存、不上传任何界面数据。
  */
 public class FlipService extends AccessibilityService {
 
     /** 长按最长持续时长：万一「抬起」指令丢了，不能真把手指按死在屏幕上。 */
     private static final long MAX_HOLD_MS = 20000L;
+
+    /**
+     * 长按落点：抖音的「长按 2 倍速」只认屏幕两侧约 1/5 宽的边缘区，按在正中间会弹出倍速浮层。
+     * 取左侧 15% 处（避开最边缘的系统返回手势区，也不压到右侧那排点赞/评论图标）。
+     */
+    private static final float HOLD_X_RATIO = 0.15f;
+    private static final float HOLD_Y_RATIO = 0.45f;
+
+    /** 收藏按钮兜底坐标：右侧竖排按钮第三个（点赞 / 评论 / 收藏 / 分享）。 */
+    private static final float FAV_X_RATIO = 0.93f;
+    private static final float FAV_Y_RATIO = 0.60f;
 
     private static volatile FlipService sInstance;
 
@@ -170,7 +183,17 @@ public class FlipService extends AccessibilityService {
         }
     }
 
-    /** 在画面中央连点 n 下：抖音双击点赞，三击收藏。 */
+    /** 三击收藏：优先找无障碍节点里的「收藏」按钮，找不到再按坐标兜底。 */
+    public static void favoriteFromBridge() {
+        FlipService service = sInstance;
+        if (service == null) {
+            UiLog.add("无障碍服务未开启，无法收藏");
+            return;
+        }
+        service.favorite();
+    }
+
+    /** 在画面中央连点 n 下：抖音双击点赞。 */
     private void tap(int n) {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
             UiLog.add("系统版本过低，不支持模拟手势");
@@ -197,6 +220,91 @@ public class FlipService extends AccessibilityService {
         }
     }
 
+    private void favorite() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) {
+            UiLog.add("系统版本过低，不支持模拟手势");
+            return;
+        }
+        if (holdActive) {
+            releaseHold();
+        }
+        if (clickFavoriteNode()) {
+            UiLog.add("收藏：已点中「收藏」按钮");
+            return;
+        }
+        tapAt(FAV_X_RATIO, FAV_Y_RATIO);
+        UiLog.add("收藏：没找到按钮节点，已按坐标点屏幕右侧");
+    }
+
+    /**
+     * 在当前界面找 contentDescription / 文本里带「收藏」的节点并点击。
+     * 只在需要收藏时读一次界面结构，不做任何遍历留存。
+     */
+    private boolean clickFavoriteNode() {
+        try {
+            AccessibilityNodeInfo root = getRootInActiveWindow();
+            if (root == null) {
+                return false;
+            }
+            AccessibilityNodeInfo target = findByDesc(root, 0, true);
+            if (target == null) {
+                target = findByDesc(root, 0, false);
+            }
+            if (target == null) {
+                return false;
+            }
+            AccessibilityNodeInfo clickable = target;
+            for (int i = 0; i < 6 && clickable != null; i++) {
+                if (clickable.isClickable()) {
+                    return clickable.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                }
+                clickable = clickable.getParent();
+            }
+            return target.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        } catch (Throwable t) {
+            UiLog.add("查找收藏按钮失败：" + t.getMessage());
+            return false;
+        }
+    }
+
+    private AccessibilityNodeInfo findByDesc(AccessibilityNodeInfo node, int depth, boolean descOnly) {
+        if (node == null || depth > 12) {
+            return null;
+        }
+        CharSequence desc = node.getContentDescription();
+        if (desc != null && desc.toString().contains("收藏")) {
+            return node;
+        }
+        if (!descOnly) {
+            CharSequence text = node.getText();
+            if (text != null && text.toString().contains("收藏")) {
+                return node;
+            }
+        }
+        int count = node.getChildCount();
+        for (int i = 0; i < count; i++) {
+            AccessibilityNodeInfo child = node.getChild(i);
+            AccessibilityNodeInfo hit = findByDesc(child, depth + 1, descOnly);
+            if (hit != null) {
+                return hit;
+            }
+        }
+        return null;
+    }
+
+    private void tapAt(float xRatio, float yRatio) {
+        DisplayMetrics dm = getResources().getDisplayMetrics();
+        Path path = new Path();
+        path.moveTo(dm.widthPixels * xRatio, dm.heightPixels * yRatio);
+        GestureDescription.Builder builder = new GestureDescription.Builder();
+        builder.addStroke(new GestureDescription.StrokeDescription(path, 0, 40));
+        try {
+            dispatchGesture(builder.build(), null, null);
+        } catch (Throwable t) {
+            UiLog.add("点按失败：" + t.getMessage());
+        }
+    }
+
     /**
      * 落下手指并保持按住。用 willContinue=true 的笔画，之后由 {@link #releaseHold()} 续写收尾，
      * 这样手指在屏幕上是真的按着，抖音会一直保持 2 倍速。
@@ -210,9 +318,8 @@ public class FlipService extends AccessibilityService {
             return true;
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
-        // 画面正中偏上一点：避开底部评论栏和右侧点赞栏，落在视频画面上
-        float x = dm.widthPixels * 0.5f;
-        float y = dm.heightPixels * 0.45f;
+        float x = dm.widthPixels * HOLD_X_RATIO;
+        float y = dm.heightPixels * HOLD_Y_RATIO;
 
         Path path = new Path();
         path.moveTo(x, y);
@@ -255,7 +362,7 @@ public class FlipService extends AccessibilityService {
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
         Path path = new Path();
-        path.moveTo(dm.widthPixels * 0.5f, dm.heightPixels * 0.45f);
+        path.moveTo(dm.widthPixels * HOLD_X_RATIO, dm.heightPixels * HOLD_Y_RATIO);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
         builder.addStroke(stroke.continueStroke(path, 0, 1, false));

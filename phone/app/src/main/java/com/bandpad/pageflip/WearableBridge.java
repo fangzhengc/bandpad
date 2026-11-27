@@ -484,8 +484,12 @@ public final class WearableBridge {
             if (n < 2) {
                 n = 2;
             }
-            FlipService.tapFromBridge(n);
-            UiLog.add((n >= 3 ? "三击收藏" : "双击点赞") + " 已执行");
+            if (n >= 3) {
+                FlipService.favoriteFromBridge();
+            } else {
+                FlipService.tapFromBridge(n);
+                UiLog.add("双击点赞 已执行");
+            }
             return;
         }
 

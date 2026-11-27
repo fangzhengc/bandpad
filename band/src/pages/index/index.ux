@@ -39,7 +39,7 @@ const MOVE_TOLERANCE = 18
 // 连击判定窗口：两下间隔小于这个时间才算双击/三击
 const TAP_GAP_MS = 280
 // 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
-const VERSION = 'v1.1.6'
+const VERSION = 'v1.1.7'
 
 let conn = null
 
@@ -51,6 +51,7 @@ export default {
     pageCount: 0,
     swipeCount: 0,
     holdCount: 0,
+    allowExit: false,
     ver: VERSION,
     startX: 0,
     startY: 0,
@@ -67,6 +68,14 @@ export default {
 
   onShow() {
     this.refreshState()
+  },
+
+  // 系统右滑 / 返回键会退出页面，这里全部吃掉：退出只认右上角按钮
+  onBackPress() {
+    if (this.allowExit) {
+      return false
+    }
+    return true
   },
 
   onHide() {
@@ -122,6 +131,7 @@ export default {
     this.cancelPressTimer()
     this.cancelTapTimer()
     this.endHold()
+    this.allowExit = true
     try {
       router.back()
     } catch (err) {

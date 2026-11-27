@@ -255,7 +255,7 @@ public class MainActivity extends Activity {
         root.addView(buildButton("⑫ 测试 三击（收藏）", 10, new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                FlipService.tapFromBridge(3);
+                FlipService.favoriteFromBridge();
             }
         }));
 
