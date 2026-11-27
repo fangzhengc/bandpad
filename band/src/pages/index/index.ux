@@ -1,5 +1,5 @@
 <template>
-  <div class="page" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd">
+  <div class="page" @touchstart="onTouchStart" @touchmove="onTouchMove" @touchend="onTouchEnd" @touchcancel="onTouchCancel">
     <div class="topbar">
       <div class="status">
         <div class="dot" style="background-color: {{ linked ? '#1D9E75' : '#A32D2D' }}"></div>
@@ -14,10 +14,10 @@
     </div>
 
     <div class="footer">
-      <text class="hint">上滑 / 下滑 → 上下翻页</text>
-      <text class="hint">左滑 / 右滑 → 横滑一下</text>
+      <text class="hint">上下滑翻页 · 左右滑横滑</text>
       <text class="hint">双击点赞 · 三击收藏</text>
-      <text class="hint">按住不动 → 2 倍速</text>
+      <text class="hint">按住 2 倍速</text>
+      <text class="hint">下滑锁定 · 上滑取消</text>
       <text class="count">翻 {{ pageCount }} · 横 {{ swipeCount }} · ×2 {{ holdCount }} · {{ ver }}</text>
     </div>
   </div>
@@ -28,7 +28,7 @@ import interconnect from '@system.interconnect'
 import vibrator from '@system.vibrator'
 import router from '@system.router'
 
-const THRESHOLD = 28
+const THRESHOLD = 26
 // 横向位移要压过纵向的 1.2 倍才算左右滑，避免斜滑时抖动串味
 const AXIS_RATIO = 1.2
 const DEDUPE_MS = 350
@@ -38,8 +38,15 @@ const LONG_PRESS_MS = 420
 const MOVE_TOLERANCE = 18
 // 连击判定窗口：两下间隔小于这个时间才算双击/三击
 const TAP_GAP_MS = 280
+// 滑动在 touchmove 里就提前触发：手环的「右滑返回」是系统手势，
+// 滑到一半就被系统接管，页面收不到后面的 touchmove / touchend，
+// 等到松手再判会永远判不出来。横向阈值给小一点，抢在系统前面把指令发出去。
+const H_FIRE = 14
+const V_FIRE = 26
+// 加速中下滑超过这个距离 = 锁定 2 倍速；锁定后上滑超过这个距离 = 取消锁定
+const LOCK_THRESHOLD = 24
 // 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
-const VERSION = 'v1.1.7'
+const VERSION = 'v1.1.8'
 
 let conn = null
 
@@ -57,6 +64,10 @@ export default {
     startY: 0,
     lastFireAt: 0,
     holding: false,
+    locked: false,
+    gestureFired: false,
+    touchAt: 0,
+    rightDrag: false,
     pressTimer: null,
     tapCount: 0,
     tapTimer: null
@@ -74,6 +85,14 @@ export default {
   onBackPress() {
     if (this.allowExit) {
       return false
+    }
+    // 手环的「右滑返回」是系统手势，滑动到一半就被系统接管，
+    // 页面拿不到完整的 touchmove / touchend，所以「右滑」永远判不出来。
+    // 这里把被系统吃掉的那次右滑当成一次「向右滑」指令补发出去。
+    const fresh = this.touchAt > 0 && Date.now() - this.touchAt < 900
+    if (fresh && this.rightDrag && !this.gestureFired && !this.holding && !this.locked) {
+      this.gestureFired = true
+      this.judge(-1, true)
     }
     return true
   },
@@ -166,8 +185,15 @@ export default {
     const p = this.pickPoint(e, false)
     this.startX = p.x
     this.startY = p.y
+    this.gestureFired = false
+    this.rightDrag = false
+    this.touchAt = Date.now()
     this.holding = false
     this.cancelPressTimer()
+    // 锁定状态下这次按下只用来识别「上滑取消」，不再重新进长按
+    if (this.locked) {
+      return
+    }
     // 按住不动到点就进入加速模式；中途滑动会被 onTouchMove 取消
     this.pressTimer = setTimeout(() => {
       this.pressTimer = null
@@ -176,29 +202,108 @@ export default {
   },
 
   onTouchMove(e) {
-    if (this.holding) {
+    const p = this.pickPoint(e, false)
+    const dx = p.x - this.startX
+    // dy > 0 = 手指往上滑，dy < 0 = 往下滑
+    const dy = this.startY - p.y
+    const ax = Math.abs(dx)
+    const ay = Math.abs(dy)
+
+    // 已锁定 2 倍速：只认「上滑取消」，其它滑动一律忽略，免得误翻页
+    if (this.locked) {
+      if (dy > LOCK_THRESHOLD) {
+        this.unlockHold()
+      }
       return
     }
-    const p = this.pickPoint(e, false)
-    if (Math.abs(p.x - this.startX) > MOVE_TOLERANCE
-      || Math.abs(p.y - this.startY) > MOVE_TOLERANCE) {
+
+    // 正在加速（已按住 0.42 秒）：下滑锁定，其它滑动忽略
+    if (this.holding) {
+      if (dy < -LOCK_THRESHOLD) {
+        this.lockHold()
+      }
+      return
+    }
+
+    if (ax > MOVE_TOLERANCE || ay > MOVE_TOLERANCE) {
       this.cancelPressTimer()
+    }
+    if (this.gestureFired) {
+      return
+    }
+
+    // 只要往右拖过一点就记下来：万一位移还没到阈值就被系统手势接管，
+    // 由 onBackPress 兜底补发一次「向右滑」
+    if (dx >= 4 && ax >= ay) {
+      this.rightDrag = true
+    }
+
+    // 不等松手：够距离就先发出去，右滑才有机会抢在系统返回手势前面
+    if (ax > ay * 1.35 && ax >= H_FIRE) {
+      this.gestureFired = true
+      this.judge(dx < 0 ? 1 : -1, true)
+      return
+    }
+    if (ay > ax * 1.35 && ay >= V_FIRE) {
+      this.gestureFired = true
+      this.judge(dy > 0 ? 1 : -1, false)
+    }
+  },
+
+  onTouchCancel() {
+    this.cancelPressTimer()
+    this.touchAt = 0
+    this.gestureFired = false
+    if (this.holding) {
+      this.endHold()
     }
   },
 
   beginHold() {
-    if (this.holding) {
+    if (this.holding || this.locked) {
       return
     }
     this.holding = true
     this.holdCount = this.holdCount + 1
     this.arrow = '2×'
-    this.actionText = '加速中，松手恢复'
+    this.actionText = '加速中 · 下滑锁定'
     this.send({ t: 'press' })
     this.vibrate()
   },
 
+  // 加速中下滑：锁定 2 倍速，松手也不恢复
+  lockHold() {
+    if (this.locked) {
+      return
+    }
+    this.locked = true
+    this.holding = false
+    this.send({ t: 'lock', n: 1 })
+    this.vibrate()
+    this.arrow = '2×'
+    this.actionText = '已锁定 · 上滑取消'
+  },
+
+  // 锁定后上滑：取消锁定，恢复 1 倍速
+  unlockHold() {
+    if (!this.locked) {
+      return
+    }
+    this.locked = false
+    this.holding = false
+    // 取消锁定用的是这一次上滑，别让它再顺手翻一页
+    this.gestureFired = true
+    this.send({ t: 'lock', n: 0 })
+    this.vibrate()
+    this.arrow = '↕'
+    this.actionText = '已恢复 1 倍速'
+  },
+
   endHold() {
+    if (this.locked) {
+      this.unlockHold()
+      return
+    }
     if (!this.holding) {
       return
     }
@@ -210,9 +315,18 @@ export default {
 
   onTouchEnd(e) {
     this.cancelPressTimer()
+    this.touchAt = 0
+    // 锁定中松手：保持加速，不发 release
+    if (this.locked) {
+      return
+    }
     // 长按松手：只发「抬起」，不要再当成一次滑动
     if (this.holding) {
       this.endHold()
+      return
+    }
+    // 滑动指令已经在 touchmove 里发出去了
+    if (this.gestureFired) {
       return
     }
 

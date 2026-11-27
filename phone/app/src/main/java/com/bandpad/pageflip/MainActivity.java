@@ -259,6 +259,21 @@ public class MainActivity extends Activity {
             }
         }));
 
+        root.addView(buildButton("⑬ 测试 锁定 2 倍速", 10, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FlipService.pressStartFromBridge();
+                FlipService.pressLockFromBridge();
+            }
+        }));
+
+        root.addView(buildButton("⑭ 测试 取消锁定", 10, new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                FlipService.pressUnlockFromBridge();
+            }
+        }));
+
         TextView logTitle = new TextView(this);
         logTitle.setText("运行记录");
         logTitle.setTextSize(13f);

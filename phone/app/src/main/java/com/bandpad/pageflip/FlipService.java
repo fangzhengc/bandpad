@@ -22,6 +22,9 @@ public class FlipService extends AccessibilityService {
     /** 长按最长持续时长：万一「抬起」指令丢了，不能真把手指按死在屏幕上。 */
     private static final long MAX_HOLD_MS = 20000L;
 
+    /** 锁定加速的最长时长：锁定后手环可能被摘下，没人来发「取消」，这里兜一次底。 */
+    private static final long LOCK_MAX_HOLD_MS = 600000L;
+
     /**
      * 长按落点：抖音的「长按 2 倍速」只认屏幕两侧约 1/5 宽的边缘区，按在正中间会弹出倍速浮层。
      * 取左侧 15% 处（避开最边缘的系统返回手势区，也不压到右侧那排点赞/评论图标）。
@@ -41,13 +44,16 @@ public class FlipService extends AccessibilityService {
     private GestureDescription.StrokeDescription holdStroke;
     /** 当前是否处于「按住」状态（低版本用固定时长，没有可续写的笔画）。 */
     private boolean holdActive;
+    /** 是否已锁定加速：锁定期间手环松手不解速，只有「取消锁定」才抬起手指。 */
+    private boolean holdLocked;
 
     private final Runnable autoRelease = new Runnable() {
         @Override
         public void run() {
             if (holdActive) {
-                UiLog.add("长按超时，自动松开手指");
-                releaseHold();
+                UiLog.add(holdLocked ? "锁定加速超时，自动松开手指" : "长按超时，自动松开手指");
+                holdLocked = false;
+                releaseHold(true);
             }
         }
     };
@@ -97,13 +103,32 @@ public class FlipService extends AccessibilityService {
         service.tap(n);
     }
 
-    /** 手环松手：抬起手指，恢复 1 倍速。 */
+    /** 手环松手：抬起手指，恢复 1 倍速。已锁定时忽略。 */
     public static void pressEndFromBridge() {
         FlipService service = sInstance;
         if (service == null) {
             return;
         }
-        service.releaseHold();
+        service.releaseHold(false);
+    }
+
+    /** 手环在加速中下滑：锁定 2 倍速，之后松手也不恢复。 */
+    public static void pressLockFromBridge() {
+        FlipService service = sInstance;
+        if (service == null) {
+            UiLog.add("无障碍服务未开启，无法锁定加速");
+            return;
+        }
+        service.lockHold();
+    }
+
+    /** 手环在锁定后上滑：取消锁定，抬起手指。 */
+    public static void pressUnlockFromBridge() {
+        FlipService service = sInstance;
+        if (service == null) {
+            return;
+        }
+        service.unlockHold();
     }
 
     @Override
@@ -118,7 +143,7 @@ public class FlipService extends AccessibilityService {
 
     @Override
     public boolean onUnbind(android.content.Intent intent) {
-        releaseHold();
+        releaseHold(true);
         sInstance = null;
         UiLog.add("无障碍服务已断开");
         return super.onUnbind(intent);
@@ -126,7 +151,7 @@ public class FlipService extends AccessibilityService {
 
     @Override
     public void onDestroy() {
-        releaseHold();
+        releaseHold(true);
         sInstance = null;
         super.onDestroy();
     }
@@ -151,7 +176,7 @@ public class FlipService extends AccessibilityService {
         }
         if (holdActive) {
             // 正在加速中又收到滑动手势，先松开，否则两个手势会打架
-            releaseHold();
+            releaseHold(true);
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
         float w = dm.widthPixels;
@@ -200,7 +225,7 @@ public class FlipService extends AccessibilityService {
             return;
         }
         if (holdActive) {
-            releaseHold();
+            releaseHold(true);
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
         float x = dm.widthPixels * 0.5f;
@@ -226,7 +251,7 @@ public class FlipService extends AccessibilityService {
             return;
         }
         if (holdActive) {
-            releaseHold();
+            releaseHold(true);
         }
         if (clickFavoriteNode()) {
             UiLog.add("收藏：已点中「收藏」按钮");
@@ -306,7 +331,7 @@ public class FlipService extends AccessibilityService {
     }
 
     /**
-     * 落下手指并保持按住。用 willContinue=true 的笔画，之后由 {@link #releaseHold()} 续写收尾，
+     * 落下手指并保持按住。用 willContinue=true 的笔画，之后由 {@link #releaseHold(boolean)} 续写收尾，
      * 这样手指在屏幕上是真的按着，抖音会一直保持 2 倍速。
      */
     private boolean startHold() {
@@ -352,8 +377,41 @@ public class FlipService extends AccessibilityService {
         return true;
     }
 
-    private void releaseHold() {
+    /** 手环在加速中下滑：锁定 2 倍速，松手也不再恢复。 */
+    private void lockHold() {
+        if (!holdActive) {
+            UiLog.add("还没进入加速，无法锁定");
+            return;
+        }
+        holdLocked = true;
         handler.removeCallbacks(autoRelease);
+        handler.postDelayed(autoRelease, LOCK_MAX_HOLD_MS);
+        UiLog.add("2 倍速已锁定（手环上滑取消）");
+    }
+
+    /** 手环在锁定后上滑：解除锁定并抬起手指。 */
+    private void unlockHold() {
+        if (!holdActive) {
+            holdLocked = false;
+            UiLog.add("当前没有加速");
+            return;
+        }
+        holdLocked = false;
+        releaseHold(true);
+        UiLog.add("已取消锁定，恢复 1 倍速");
+    }
+
+    /**
+     * @param force true = 无论如何都抬起手指（解锁、服务销毁、切换手势）；
+     *              false = 手环松手，若已锁定则保持按住
+     */
+    private void releaseHold(boolean force) {
+        if (!force && holdLocked) {
+            // 已锁定：手环松手不解速，等「取消锁定」或超时兜底
+            return;
+        }
+        handler.removeCallbacks(autoRelease);
+        holdLocked = false;
         holdActive = false;
         GestureDescription.StrokeDescription stroke = holdStroke;
         holdStroke = null;

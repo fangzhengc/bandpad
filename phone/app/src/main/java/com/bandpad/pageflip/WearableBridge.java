@@ -438,6 +438,24 @@ public final class WearableBridge {
         }
     }
 
+    /** 从 payload 里取整型字段，缺省返回 def（手环发 {"t":"lock","n":1}）。 */
+    private static int parseInt(String payload, String key, int def) {
+        try {
+            JSONObject obj = new JSONObject(payload);
+            return obj.optInt(key, def);
+        } catch (Throwable ignored) {
+            Matcher m = Pattern.compile("\"" + key + "\"\\s*:\\s*(\\d+)").matcher(payload);
+            if (m.find()) {
+                try {
+                    return Integer.parseInt(m.group(1));
+                } catch (Throwable ignored2) {
+                    return def;
+                }
+            }
+            return def;
+        }
+    }
+
     private static String text(String s) {
         return s == null ? "未知错误" : s;
     }
@@ -497,6 +515,15 @@ public final class WearableBridge {
         if ("press".equals(type)) {
             boolean ok = FlipService.pressStartFromBridge();
             UiLog.add(ok ? "长按加速开始（2 倍速）" : "长按加速失败");
+            return;
+        }
+        // 加速中手环下滑 = 锁定 2 倍速；锁定后上滑 = 取消（n: 1 / 0）
+        if ("lock".equals(type)) {
+            if (parseInt(text, "n", 1) == 0) {
+                FlipService.pressUnlockFromBridge();
+            } else {
+                FlipService.pressLockFromBridge();
+            }
             return;
         }
         if ("release".equals(type)) {
