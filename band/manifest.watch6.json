@@ -1,8 +1,8 @@
 {
   "package": "com.bandpad.pageflip",
-  "name": "腕上翻页",
-  "versionName": "1.2.0",
-  "versionCode": 11,
+  "name": "Watch 6",
+  "versionName": "1.2.1",
+  "versionCode": 12,
   "minPlatformVersion": 1200,
   "icon": "/common/logo_w6.png",
   "simulationVersion": "default",

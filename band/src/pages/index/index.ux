@@ -53,7 +53,7 @@ const V_FIRE = 26
 // 加速中下滑超过这个距离 = 锁定 2 倍速；锁定后上滑超过这个距离 = 取消锁定
 const LOCK_THRESHOLD = 24
 // 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
-const VERSION = 'v1.2.0'
+const VERSION = 'v1.2.1'
 
 let conn = null
 

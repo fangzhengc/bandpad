@@ -37,15 +37,15 @@
 
 **只想用，不打算编译** —— 直接装 `dist/` 里现成的两个包（也可以从 [Releases](https://github.com/fangzhengc/bandpad/releases/latest) 下载）。它们是同一次签名出来的，装完即可连通：
 
-| 文件 | 装到哪 |
-|---|---|
-| `dist/bandpad.apk` | 手机（所有机型共用这一个） |
-| `dist/com.bandpad.pageflip.release.1.2.0.9pro.rpk` | 小米手环 9 Pro（AstroBox 刷入） |
-| `dist/com.bandpad.pageflip.release.1.2.0.watch6.rpk` | REDMI Watch 6（AstroBox 刷入） |
+| 文件 | 装到哪 | 应用列表里显示的名字 |
+|---|---|---|
+| `dist/bandpad.apk` | 手机（所有机型共用这一个） | 腕上翻页 |
+| `dist/com.bandpad.pageflip.release.1.2.1.9pro.rpk` | 小米手环 9 Pro（AstroBox 刷入） | 手环 9 Pro |
+| `dist/com.bandpad.pageflip.release.1.2.1.watch6.rpk` | REDMI Watch 6（AstroBox 刷入） | Watch 6 |
 
-> 仓库只放**当前这一个版本**：`1.2.0 / versionCode 11`，两端同版本号、同签名。旧版本的安装包不再随仓库分发。
+> 仓库只放**当前这一个版本**：`1.2.1 / versionCode 12`，两端同版本号、同签名。旧版本的安装包不再随仓库分发。
 >
-> 两个 RPK **包名和签名完全相同**，只是界面基准宽度和图标不同：9 Pro 版 `designWidth=168`，Watch 6 版 `designWidth=216`。装错机型不会崩，但字会偏大或偏小。
+> 两个 RPK **包名和签名完全相同**，只是界面基准宽度和图标不同：9 Pro 版 `designWidth=168`，Watch 6 版 `designWidth=216`。装错机型不会崩，但字会偏大或偏小。两个包的**应用名也不同**（见上表），装完看名字就知道装的是哪版。
 
 **想改代码** —— clone 下来就能编，小米穿戴 SDK 已随仓库提供，不用自己申请：
 
@@ -85,8 +85,8 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 
 **准备**：手机装 AstroBox，把对应机型的 RPK 存到手机任意目录（下载目录即可）：
 
-- 小米手环 9 Pro → `dist/com.bandpad.pageflip.release.1.2.0.9pro.rpk`
-- REDMI Watch 6 → `dist/com.bandpad.pageflip.release.1.2.0.watch6.rpk`
+- 小米手环 9 Pro → `dist/com.bandpad.pageflip.release.1.2.1.9pro.rpk`
+- REDMI Watch 6 → `dist/com.bandpad.pageflip.release.1.2.1.watch6.rpk`
 
 **连接手环**（已连过可跳过）：
 
@@ -101,9 +101,9 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 2. 点 **安装应用** → 选择 **本地文件**
 3. 找到对应机型的 `.rpk`，加入任务队列
 4. 点 **一键安装**，等 5～15 秒，手环上会弹出安装进度条
-5. 装完手环应用列表里出现「腕上翻页」
+5. 装完手表应用列表里出现应用图标，**名字就是你的设备型号**（手环 9 Pro 版显示「手环 9 Pro」，Watch 6 版显示「Watch 6」），两台设备都装了也不会混
 
-> **升级覆盖安装**：新 RPK 的 `versionCode` 必须比已装的大，否则手环不会更替。本项目手表端当前为 `1.2.0 / versionCode 11`，旧版本可直接覆盖升级。
+> **升级覆盖安装**：新 RPK 的 `versionCode` 必须比已装的大，否则手环不会更替。本项目手表端当前为 `1.2.1 / versionCode 12`，旧版本可直接覆盖升级。
 
 > AstroBox 只是「把文件送进手环」的工具，不改变应用行为。装了 AstroBox 不必保持它常驻，日常翻页完全不需要它。
 
