@@ -109,11 +109,35 @@ build_band() {
     cp -f "$ROOT/band/src/common/platform.$profile.js" "$ROOT/band/src/common/platform.js"
   fi
 
-  ( cd "$ROOT/band" && npm run release )
+  # 先把上一轮的产物挪走。npm run release 失败时不会覆盖 dist，
+  # 这里如果不清，后面 cp 到的就是上一次的旧包，名字改一下没人看得出。
+  local keep
+  keep=$(mktemp -d)
+  if [ -d "$ROOT/band/dist" ]; then
+    mv "$ROOT/band"/dist/*.rpk "$keep"/ 2>/dev/null || true
+  fi
 
-  local ver rpk
-  rpk=$(ls "$ROOT/band"/dist/*.rpk | head -1)
+  if ! ( cd "$ROOT/band" && npm run release ); then
+    echo "❌ $profile 构建失败，没有产出安装包（旧包已挪到 $keep）" >&2
+    return 1
+  fi
+
+  local rpk
+  rpk=$(ls "$ROOT/band"/dist/*.rpk 2>/dev/null | head -1)
+  if [ -z "$rpk" ]; then
+    echo "❌ $profile 构建没有产出 rpk" >&2
+    return 1
+  fi
+
+  # 产物版本号必须和这次用的 manifest 对得上，否则说明拿到的是别的包
+  local ver expect
   ver=$(basename "$rpk" .rpk | sed 's/.*release\.//')
+  expect=$(grep -m1 '"versionName"' "$manifest_src" | sed 's/.*"versionName"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/')
+  if [ "$ver" != "$expect" ]; then
+    echo "❌ $profile 产物版本 ${ver} 与 manifest 的 ${expect} 不一致，拒绝出包" >&2
+    return 1
+  fi
+
   cp -f "$rpk" "$ROOT/dist/$(basename "$rpk" .rpk).$profile.rpk"
   echo "   → dist/$(basename "$rpk" .rpk).$profile.rpk（$ver / $profile）"
 }
@@ -128,10 +152,10 @@ if [ "$BUILD_BAND" -eq 1 ]; then
   trap 'cp -f "$BAK_MANIFEST" "$ROOT/band/src/manifest.json"; cp -f "$BAK_PLATFORM" "$ROOT/band/src/common/platform.js"; rm -f "$BAK_MANIFEST" "$BAK_PLATFORM"' EXIT
 
   if [ -n "$ONLY_PROFILE" ]; then
-    build_band "$ONLY_PROFILE"
+    build_band "$ONLY_PROFILE" || exit 1
   else
     for p in "${BAND_PROFILES[@]}"; do
-      build_band "$p"
+      build_band "$p" || exit 1
     done
   fi
 fi
@@ -140,7 +164,7 @@ fi
 if [ "$BUILD_PHONE" -eq 1 ]; then
   echo "== 手机端 APK =="
   cd "$ROOT/phone"
-  "$GRADLE" assembleRelease --no-daemon
+  "$GRADLE" assembleRelease --no-daemon || exit 1
   cp -f app/build/outputs/apk/release/app-release.apk "$ROOT/dist/bandpad.apk"
 fi
 
