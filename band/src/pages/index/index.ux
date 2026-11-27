@@ -13,6 +13,12 @@
       <text class="action">{{ actionText }}</text>
     </div>
 
+    <div class="pad" if="{{ pad }}">
+      <div class="pad-btn" @click="padPrev"><text class="pad-text">▲ 上一页</text></div>
+      <div class="pad-btn" @click="padNext"><text class="pad-text">▼ 下一页</text></div>
+      <div class="pad-btn" @click="toggleHold"><text class="pad-text">2×</text></div>
+    </div>
+
     <div class="footer">
       <text class="hint">上下滑翻页 · 左右滑横滑</text>
       <text class="hint">双击点赞 · 三击收藏</text>
@@ -27,6 +33,7 @@
 import interconnect from '@system.interconnect'
 import vibrator from '@system.vibrator'
 import router from '@system.router'
+import platform from '../../common/platform'
 
 const THRESHOLD = 26
 // 横向位移要压过纵向的 1.2 倍才算左右滑，避免斜滑时抖动串味
@@ -46,7 +53,7 @@ const V_FIRE = 26
 // 加速中下滑超过这个距离 = 锁定 2 倍速；锁定后上滑超过这个距离 = 取消锁定
 const LOCK_THRESHOLD = 24
 // 版本号：改版本时这里要跟着 manifest.json / package.json 一起改
-const VERSION = 'v1.1.8'
+const VERSION = 'v1.2.0'
 
 let conn = null
 
@@ -60,6 +67,8 @@ export default {
     holdCount: 0,
     allowExit: false,
     ver: VERSION,
+    pad: platform.pad,
+    devName: platform.name,
     startX: 0,
     startY: 0,
     lastFireAt: 0,
@@ -392,6 +401,29 @@ export default {
     this.fire(dir, horizontal)
   },
 
+  // ── 屏幕按钮（只在 platform.pad 的设备上出现，比如 Watch 6）────────────
+  padPrev() {
+    this.judge(-1, false)
+  },
+
+  padNext() {
+    this.judge(1, false)
+  },
+
+  // 按钮模式下没法「按住不放」，改成点一下锁定加速、再点一下取消
+  toggleHold() {
+    if (this.locked) {
+      this.unlockHold()
+      return
+    }
+    if (this.holding) {
+      this.lockHold()
+      return
+    }
+    this.beginHold()
+    this.lockHold()
+  },
+
   send(payload) {
     if (!conn) {
       this.connect()
@@ -502,11 +534,34 @@ export default {
   margin-top: 4px;
 }
 
+.pad {
+  width: 100%;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+}
+
+.pad-btn {
+  height: 26px;
+  padding-left: 10px;
+  padding-right: 10px;
+  margin-left: 4px;
+  margin-right: 4px;
+  border-radius: 13px;
+  background-color: #3A3A38;
+  align-items: center;
+  justify-content: center;
+}
+
+.pad-text {
+  font-size: 12px;
+  color: #F1EFE8;
+}
+
 .footer {
   flex-direction: column;
   align-items: center;
 }
-
 .hint {
   font-size: 10px;
   color: #888780;

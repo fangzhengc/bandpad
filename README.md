@@ -1,6 +1,7 @@
 # 腕上翻页 · BandPad
 
 ![platform](https://img.shields.io/badge/手环-小米手环%209%20Pro-5DCAA5)
+![platform](https://img.shields.io/badge/手表-REDMI%20Watch%206-5DCAA5)
 ![platform](https://img.shields.io/badge/手机-Android%207.0%2B-3DDC84)
 ![band](https://img.shields.io/badge/手环端-Vela%20快应用%20(RPK)-blue)
 ![license](https://img.shields.io/badge/license-MIT-5DCAA5)
@@ -8,7 +9,9 @@
 
 **在手表上滑一下，手机就翻一页；按住不动，抖音自动 2 倍速。** 刷视频、看电子书时不用再去够手机。
 
-手环端是一个 Vela 快应用（`.rpk`），**用 [AstroBox](https://astrobox.online/) 刷入手环**；手机端是一个用了无障碍手势的安卓 App。两端通过小米官方的 `interconnect` 通道通信。
+手表端是一个 Vela 快应用（`.rpk`），**用 [AstroBox](https://astrobox.online/) 刷入手环/手表**；手机端是一个用了无障碍手势的安卓 App。两端通过小米官方的 `interconnect` 通道通信。
+
+**一个手机 App 通吃多个机型**，手表端按机型分别出包（当前提供小米手环 9 Pro 与 REDMI Watch 6），App 里手动选当前在用哪台即可。
 
 ```
 手环 RPK ──滑动 / 长按 / 连点──▶ interconnect（BLE → 小米运动健康 → App）──▶ 手机 APK ──dispatchGesture()──▶ 翻页 / 加速 / 点赞收藏
@@ -21,6 +24,8 @@
 | 项目 | 情况 |
 |---|---|
 | 手环 | 小米手环 9 Pro（`designWidth=168`，对应 336×480）。手环 9 / 9 NFC 等同分辨率 Vela 设备理论上可用，未实测 |
+| 手表 | REDMI Watch 6（432×514，`designWidth=216`，HyperOS 3 / Vela 3.6+）。同一份源码，构建时换一套 manifest 与平台描述 |
+| 其他 Vela 设备 | 复制一份 `manifest.<id>.json` + `platform.<id>.js` 就能出包，见「多机型」一节 |
 | 手机 | Android 7.0+（`minSdk 23`），已在 Redmi K90 Pro Max / HyperOS 上使用 |
 | 手环刷入方式 | **[AstroBox](https://astrobox.online/)**（也可用表盘自定义工具等支持 RPK 的工具） |
 | 延迟 | 百毫秒级。这是「滑一下翻一页」的离散模式，不是逐帧跟手的触控板 |
@@ -34,10 +39,13 @@
 
 | 文件 | 装到哪 |
 |---|---|
-| `dist/bandpad.apk` | 手机 |
-| `dist/com.bandpad.pageflip.release.1.1.8.rpk` | 手环（用 AstroBox 刷入） |
+| `dist/bandpad.apk` | 手机（所有机型共用这一个） |
+| `dist/com.bandpad.pageflip.release.1.2.0.9pro.rpk` | 小米手环 9 Pro（AstroBox 刷入） |
+| `dist/com.bandpad.pageflip.release.1.2.0.watch6.rpk` | REDMI Watch 6（AstroBox 刷入） |
 
-> 仓库只放**当前这一个版本**：`1.1.8 / versionCode 10`，两端同版本号、同签名。旧版本的安装包不再随仓库分发。
+> 仓库只放**当前这一个版本**：`1.2.0 / versionCode 11`，两端同版本号、同签名。旧版本的安装包不再随仓库分发。
+>
+> 两个 RPK **包名和签名完全相同**，只是界面基准宽度和图标不同：9 Pro 版 `designWidth=168`，Watch 6 版 `designWidth=216`。装错机型不会崩，但字会偏大或偏小。
 
 **想改代码** —— clone 下来就能编，小米穿戴 SDK 已随仓库提供，不用自己申请：
 
@@ -69,13 +77,16 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
    - 应用信息 → 自启动 → **允许**（或点 **⑦ 打开自启动设置**）
    - 多任务界面把「腕上翻页」卡片**下拉锁定**
 
-### 2. 手环端（用 AstroBox 刷入）
+### 2. 手表端（用 AstroBox 刷入，按机型选包）
 
 手环没有应用商店，快应用 RPK 必须侧载。本项目使用 **AstroBox** 刷入。
 
 [AstroBox](https://astrobox.online/) 是面向小米穿戴设备（Xiaomi Vela / HyperOS）的第三方管理工具，支持安装 `.rpk` 快应用、`.bin` 表盘与固件，并可连接设备、传文件、管插件。
 
-**准备**：手机装 AstroBox，把 `dist/com.bandpad.pageflip.release.1.1.8.rpk` 存到手机任意目录（下载目录即可）。
+**准备**：手机装 AstroBox，把对应机型的 RPK 存到手机任意目录（下载目录即可）：
+
+- 小米手环 9 Pro → `dist/com.bandpad.pageflip.release.1.2.0.9pro.rpk`
+- REDMI Watch 6 → `dist/com.bandpad.pageflip.release.1.2.0.watch6.rpk`
 
 **连接手环**（已连过可跳过）：
 
@@ -88,11 +99,11 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 
 1. AstroBox → 底部 **设备**
 2. 点 **安装应用** → 选择 **本地文件**
-3. 找到 `com.bandpad.pageflip.release.1.1.8.rpk`，加入任务队列
+3. 找到对应机型的 `.rpk`，加入任务队列
 4. 点 **一键安装**，等 5～15 秒，手环上会弹出安装进度条
 5. 装完手环应用列表里出现「腕上翻页」
 
-> **升级覆盖安装**：新 RPK 的 `versionCode` 必须比已装的大，否则手环不会更替。本项目手环端当前为 `1.1.8 / versionCode 10`，旧版本可直接覆盖升级。
+> **升级覆盖安装**：新 RPK 的 `versionCode` 必须比已装的大，否则手环不会更替。本项目手表端当前为 `1.2.0 / versionCode 11`，旧版本可直接覆盖升级。
 
 > AstroBox 只是「把文件送进手环」的工具，不改变应用行为。装了 AstroBox 不必保持它常驻，日常翻页完全不需要它。
 
@@ -127,8 +138,28 @@ bash scripts/build.sh      # 一次出 RPK + APK，产物在 dist/
 - **按住不动 → 2 倍速**：手环上按满 0.42 秒开始，手机在**屏幕左侧边缘**持续按住（抖音的长按加速只认两侧约 1/5 宽的区域，按正中间会弹倍速浮层），松手即恢复
 - **加速中下滑 → 锁定 2 倍速**：松手也不再恢复，界面显示 `2× 已锁定`，适合整段视频一直看
 - **锁定后上滑 → 取消锁定**：抬起手机上的手指，回到 1 倍速；锁定时手环上的翻页/横滑会被忽略，避免误操作
+- **（Watch 6）底部还有一排按钮**：`▲ 上一页` / `▼ 下一页` / `2×`。手表的上下滑经常被系统手势（回表盘、通知中心）抢走，滑不动时点按钮；`2×` 是点一下锁定加速、再点一下取消
 - **退出只走右上角按钮**，四个方向的滑动都不再触发退出，避免刷视频时误退
 - 手机 App 的「运行记录」能看到每条指令及执行结果
+
+---
+
+## 多机型：怎么切换、怎么加新机型
+
+**手机端切换**：App 顶部有个「目标设备：xxx（点击切换）」，选当前在用的那台。选择存在本地，重启仍生效。它决定手势的几何参数（长按落点、横滑与翻页幅度）以及日志里的标注——目前 9 Pro 与 Watch 6 的参数一致，切换主要是给以后屏幕比例不同的设备留位置。
+
+**加一个新机型**（以手环 10 为例，四步）：
+
+1. 复制 `band/manifest.9pro.json` → `band/manifest.band10.json`，改 `designWidth`（屏宽 ÷ 2）、`icon`、版本号
+2. 复制 `band/src/common/platform.watch6.js` → `band/src/common/platform.band10.js`，改 `id` / `name` / `pad`（屏幕小、手势够用的机型写 `pad: false`）
+3. 在 `scripts/build.sh` 的 `BAND_PROFILES` 里加上 `band10`
+4. 手机端在 `DeviceProfile.ALL` 里加一条（不加也能用，会走默认参数）
+
+```bash
+bash scripts/build.sh --profile watch6   # 只出某一个机型
+bash scripts/build.sh --band-only        # 只出手表包（所有机型）
+bash scripts/build.sh --phone-only       # 只出 APK
+```
 
 ---
 
@@ -182,7 +213,7 @@ BANDPAD_PASS=旧密码 bash scripts/gen-pem.sh --force  # 丢弃旧 keystore 重
 bash scripts/build.sh
 ```
 
-产物落到 `dist/`。首次运行会 `npm install` 手环端依赖（走 npmmirror 镜像），之后约 30 秒出包。也可以分开编：
+产物落到 `dist/`，文件名带机型后缀（`.9pro.rpk` / `.watch6.rpk`），一眼能看出装哪个。首次运行会 `npm install` 手表端依赖（走 npmmirror 镜像），之后每个机型约 4 秒。构建脚本会用 `band/manifest.<id>.json` 和 `common/platform.<id>.js` 临时覆盖源码里的同名文件，打完自动还原，所以工作区不会留脏改动。也可以分开编：
 
 ```bash
 cd band  && npm run release        # → band/dist/*.rpk
@@ -196,15 +227,15 @@ cd phone && gradle assembleRelease  # → app/build/outputs/apk/release/*.apk
 | 想要的效果 | 改哪里 |
 |---|---|
 | 更容易 / 更难触发 | `band/src/pages/index/index.ux` 的 `THRESHOLD`（默认 28dp，调大更防误触） |
-| 翻页幅度 | `phone/.../FlipService.java` 的 `0.72f / 0.30f`（起止点占屏高比例） |
-| 横滑幅度 | 同文件横向分支的 `0.75f / 0.25f`（起止点占屏宽比例，离边缘太近会被系统当成返回） |
+| 翻页幅度 | `phone/.../DeviceProfile.java` 的 `vFrom / vTo`（起止点占屏高比例），两个机型各一份 |
+| 横滑幅度 | 同文件 `hFrom`（起点占屏宽比例，终点取 1 - hFrom；离边缘太近会被系统当成返回） |
 | 连点节奏 | 同文件 `tap()` 里的 `i * 110L` 与 `40`（间隔 / 每下按压时长） |
 | 连击判定窗口 | `index.ux` 的 `TAP_GAP_MS`（默认 280ms，两下间隔超过它就当两次单击） |
 | 翻页快慢 | 同上，`StrokeDescription(path, 0, 170)` 的 `170` 是毫秒 |
 | 防连翻间隔 | `index.ux` 的 `DEDUPE_MS`（默认 350ms） |
 | 长按多久算加速 | `index.ux` 的 `LONG_PRESS_MS`（默认 420ms，调大更不容易误触） |
-| 长按落在屏幕哪里 | `FlipService.java` 的 `HOLD_X_RATIO / HOLD_Y_RATIO`（默认 0.15 / 0.45，即左侧 15% 处；抖音只认两侧边缘区） |
-| 收藏点偏了 | 同文件 `FAV_X_RATIO / FAV_Y_RATIO`（兜底坐标，默认 0.93 / 0.60；优先走「找收藏按钮」） |
+| 长按落在屏幕哪里 | `DeviceProfile.java` 的 `holdX / holdY`（默认 0.15 / 0.45，即左侧 15% 处；抖音只认两侧边缘区） |
+| 收藏点偏了 | 同文件 `favX / favY`（兜底坐标，默认 0.93 / 0.60；优先走「找收藏按钮」） |
 | 长按最长持续 | `FlipService.java` 的 `MAX_HOLD_MS`（默认 20 秒，防止「松手」指令丢失后手指按死） |
 | 锁定最长持续 | 同文件 `LOCK_MAX_HOLD_MS`（默认 10 分钟，锁定后没人取消时的兜底） |
 | 滑动多少算滑 | `index.ux` 的 `H_FIRE / V_FIRE`（默认 14 / 26dp，横向更小是为了抢在系统返回手势前面） |
@@ -224,6 +255,8 @@ Vela 的图标签码器对 PNG 有**四条**硬约束，违反任何一条都会
 | **图标文件名** | `logo.png` | **只换图片内容、文件名不变 → 一直读旧缓存。改名成 `logo_bf.png` 后立即正常** |
 
 `--like` 模式会照抄模板的 IHDR 和辅助 chunk（tEXt）、沿用模板的行过滤器策略（首行 Sub、其余 Up），并且在压缩后 IDAT 小于模板长度时自动退到不压缩，保证体积不低于 3408。所以生成出来的文件通常 49 KB 左右，这是正常的，不是写错了。
+
+REDMI Watch 6 的应用图标用 192×192（`band/src/common/logo_w6.png`，`java scripts/gen_band_logo.java band/src/common/logo_w6.png 192` 生成），手表固件没有手环那套 3408 字节的怪癖，普通编码即可。它同样是**独立文件名**，避免命中手环那张图的缓存。
 
 **改图标的完整动作**（少一步都会显示成旧图或花屏）：
 
@@ -294,6 +327,8 @@ Vela 的图标签码器对 PNG 有**四条**硬约束，违反任何一条都会
 | 手环按住没加速 | 先点 ⑧ 验证手机端能否长按；能长按但抖音不加速，看是不是落点不在两侧边缘区（改 `HOLD_X_RATIO`，0.12~0.18 都可以） |
 | 松手后画面还在加速 | 要么已锁定（界面显示 `2× 已锁定`，上滑取消），要么「抬起」指令丢包。未锁定时等 20 秒会自动松开；仍不行就在手机上随便点一下 |
 | 手环上退不出去 | 点右上角「退出」按钮（1.1.5 起左右滑只发横滑手势，不再退出）；旧包请重装 RPK |
+| Watch 6 上滑没反应 | 手表的上下滑大概率被系统手势接管。改用底部 `▲ / ▼` 按钮；想恢复滑动可以先把系统「上滑回表盘」关掉试试 |
+| Watch 6 界面字特别大 / 特别小 | 装错机型包了：432×514 该用 `watch6` 那个 rpk（designWidth 216） |
 | 三击没收藏 | 看运行记录里是「已点中收藏按钮」还是「没找到按钮节点」。后者说明当前界面没暴露收藏按钮，把 `FAV_X_RATIO / FAV_Y_RATIO` 调成你屏幕上星标按钮的位置 |
 | 双击没点赞 | 双击落在画面正中；若中间有弹窗（评论、分享）遮着，先返回再试 |
 | 横滑被识别成「返回」 | 横滑起止点在屏幕 0.75w / 0.25w，若你的系统把「屏幕边缘滑动」阈值设得很宽，改 `FlipService.java` 里的 0.75 / 0.25 往里收 |

@@ -1,7 +1,9 @@
 package com.bandpad.pageflip;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.ComponentName;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.graphics.Color;
 import android.net.Uri;
@@ -28,6 +30,7 @@ public class MainActivity extends Activity {
     private TextView statusView;
     private TextView logView;
     private Button permButton;
+    private Button deviceButton;
 
     private final Handler ui = new Handler(Looper.getMainLooper());
     private final Runnable refreshTask = new Runnable() {
@@ -133,13 +136,28 @@ public class MainActivity extends Activity {
         root.addView(title);
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("手环滑一下 → 手机翻一页 · 按住 → 2 倍速");
+        subtitle.setText("手表滑一下 → 手机翻一页 · 按住 → 2 倍速");
         subtitle.setTextSize(13f);
         subtitle.setTextColor(Color.parseColor("#888780"));
         LinearLayout.LayoutParams subParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         subParams.topMargin = dp(4);
         root.addView(subtitle, subParams);
+
+        // 多机型：一个 App 支持多个手表型号，这里手动选当前在用哪一台
+        deviceButton = new Button(this);
+        deviceButton.setAllCaps(false);
+        deviceButton.setTextSize(14f);
+        deviceButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                showDevicePicker();
+            }
+        });
+        LinearLayout.LayoutParams devParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(44));
+        devParams.topMargin = dp(12);
+        root.addView(deviceButton, devParams);
 
         statusView = new TextView(this);
         statusView.setTextSize(13f);
@@ -314,18 +332,47 @@ public class MainActivity extends Activity {
         return button;
     }
 
+    /** 机型选择：列表来自 DeviceProfile.ALL，加新型号不用改这里。 */
+    private void showDevicePicker() {
+        final DeviceProfile current = DeviceProfile.current(this);
+        String[] items = new String[DeviceProfile.ALL.length];
+        for (int i = 0; i < items.length; i++) {
+            items[i] = DeviceProfile.ALL[i].name + "　" + DeviceProfile.ALL[i].note;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("当前使用哪台手表")
+                .setSingleChoiceItems(items, DeviceProfile.indexOf(current),
+                        new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                DeviceProfile picked = DeviceProfile.ALL[which];
+                                DeviceProfile.select(MainActivity.this, picked);
+                                UiLog.add("已切换目标设备：" + picked.name);
+                                dialog.dismiss();
+                                updateStatus();
+                            }
+                        })
+                .setNegativeButton("取消", null)
+                .show();
+    }
+
     private void updateStatus() {
         String accessibility = isAccessibilityOn() ? "已开启" : "未开启";
         boolean connected = WearableBridge.get().isListening();
         String bridge = WearableBridge.get().statusText();
         String permission = WearableBridge.get().permissionText();
         String battery = isIgnoringBattery() ? "已放行" : "未放行";
-        String text = "无障碍服务：" + accessibility
-                + "\n手环权限：" + permission
+        DeviceProfile device = DeviceProfile.current(this);
+        String text = "目标设备：" + device.name
+                + "\n无障碍服务：" + accessibility
+                + "\n手表权限：" + permission
                 + "\n后台保活：" + battery
-                + "\n手环通道：" + bridge
+                + "\n手表通道：" + bridge
                 + "\n包名：" + getPackageName();
         statusView.setText(text);
+        if (deviceButton != null) {
+            deviceButton.setText("目标设备：" + device.name + "　（点击切换）");
+        }
         if (isAccessibilityOn()) {
             statusView.setTextColor(Color.parseColor("#9FE1CB"));
         } else {

@@ -1,0 +1,36 @@
+{
+  "package": "com.bandpad.pageflip",
+  "name": "腕上翻页",
+  "versionName": "1.2.0",
+  "versionCode": 11,
+  "minPlatformVersion": 1200,
+  "icon": "/common/logo_w6.png",
+  "simulationVersion": "default",
+  "deviceTypeList": [
+    "watch"
+  ],
+  "features": [
+    {
+      "name": "system.router"
+    },
+    {
+      "name": "system.interconnect"
+    },
+    {
+      "name": "system.vibrator"
+    }
+  ],
+  "config": {
+    "logLevel": "log",
+    "designWidth": 216
+  },
+  "router": {
+    "entry": "pages/index",
+    "pages": {
+      "pages/index": {
+        "component": "index"
+      }
+    }
+  },
+  "minAPILevel": 1
+}

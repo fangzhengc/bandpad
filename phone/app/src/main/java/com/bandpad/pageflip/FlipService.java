@@ -26,15 +26,10 @@ public class FlipService extends AccessibilityService {
     private static final long LOCK_MAX_HOLD_MS = 600000L;
 
     /**
-     * 长按落点：抖音的「长按 2 倍速」只认屏幕两侧约 1/5 宽的边缘区，按在正中间会弹出倍速浮层。
-     * 取左侧 15% 处（避开最边缘的系统返回手势区，也不压到右侧那排点赞/评论图标）。
+     * 手势的几何参数（长按落点、横滑幅度、翻页幅度）不写死在这里，
+     * 统一从 {@link DeviceProfile#current(android.content.Context)} 取：
+     * 不同屏幕比例的设备可以分别微调，加新型号也不用改这个类。
      */
-    private static final float HOLD_X_RATIO = 0.15f;
-    private static final float HOLD_Y_RATIO = 0.45f;
-
-    /** 收藏按钮兜底坐标：右侧竖排按钮第三个（点赞 / 评论 / 收藏 / 分享）。 */
-    private static final float FAV_X_RATIO = 0.93f;
-    private static final float FAV_Y_RATIO = 0.60f;
 
     private static volatile FlipService sInstance;
 
@@ -179,6 +174,7 @@ public class FlipService extends AccessibilityService {
             releaseHold(true);
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
+        DeviceProfile device = DeviceProfile.current(this);
         float w = dm.widthPixels;
         float h = dm.heightPixels;
 
@@ -186,14 +182,14 @@ public class FlipService extends AccessibilityService {
         if (horizontal) {
             // 横滑落在屏幕中部，起止点都离左右边缘远一点，避免被当成系统「返回」手势
             float y = h * 0.5f;
-            float fromX = dir > 0 ? w * 0.75f : w * 0.25f;
-            float toX = dir > 0 ? w * 0.25f : w * 0.75f;
+            float fromX = dir > 0 ? w * device.hFrom : w * (1f - device.hFrom);
+            float toX = dir > 0 ? w * (1f - device.hFrom) : w * device.hFrom;
             path.moveTo(fromX, y);
             path.lineTo(toX, y);
         } else {
             float x = w * 0.5f;
-            float fromY = dir > 0 ? h * 0.72f : h * 0.30f;
-            float toY = dir > 0 ? h * 0.30f : h * 0.72f;
+            float fromY = dir > 0 ? h * device.vFrom : h * device.vTo;
+            float toY = dir > 0 ? h * device.vTo : h * device.vFrom;
             path.moveTo(x, fromY);
             path.lineTo(x, toY);
         }
@@ -257,7 +253,8 @@ public class FlipService extends AccessibilityService {
             UiLog.add("收藏：已点中「收藏」按钮");
             return;
         }
-        tapAt(FAV_X_RATIO, FAV_Y_RATIO);
+        DeviceProfile device = DeviceProfile.current(this);
+        tapAt(device.favX, device.favY);
         UiLog.add("收藏：没找到按钮节点，已按坐标点屏幕右侧");
     }
 
@@ -343,8 +340,9 @@ public class FlipService extends AccessibilityService {
             return true;
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
-        float x = dm.widthPixels * HOLD_X_RATIO;
-        float y = dm.heightPixels * HOLD_Y_RATIO;
+        DeviceProfile device = DeviceProfile.current(this);
+        float x = dm.widthPixels * device.holdX;
+        float y = dm.heightPixels * device.holdY;
 
         Path path = new Path();
         path.moveTo(x, y);
@@ -420,7 +418,8 @@ public class FlipService extends AccessibilityService {
         }
         DisplayMetrics dm = getResources().getDisplayMetrics();
         Path path = new Path();
-        path.moveTo(dm.widthPixels * HOLD_X_RATIO, dm.heightPixels * HOLD_Y_RATIO);
+        DeviceProfile device = DeviceProfile.current(this);
+        path.moveTo(dm.widthPixels * device.holdX, dm.heightPixels * device.holdY);
 
         GestureDescription.Builder builder = new GestureDescription.Builder();
         builder.addStroke(stroke.continueStroke(path, 0, 1, false));
